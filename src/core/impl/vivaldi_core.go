@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/sebastianopriscan/GNCFD/core"
+	"github.com/sebastianopriscan/GNCFD/core/guid"
 	"github.com/sebastianopriscan/GNCFD/core/nvs"
 )
 
@@ -14,8 +15,8 @@ type nodeData[SUPPORT float64 | complex128] struct {
 }
 
 type VivaldiCore[SUPPORT float64 | complex128] struct {
-	nodesCache    map[int64]nodeData[SUPPORT]
-	myGUID        int64
+	nodesCache    map[guid.Guid]nodeData[SUPPORT]
+	myGUID        guid.Guid
 	myCoordinates *nvs.Point[SUPPORT]
 	callback      func(rtt float64, metadata core.Metadata)
 	space         *nvs.NormedVectorSpace[SUPPORT]
@@ -41,32 +42,32 @@ type VivaldiCore[SUPPORT float64 | complex128] struct {
 		return retMap
 	}
 */
-func (cr *VivaldiCore[SUPPORT]) GetClosestOf(guids []int64) ([]int64, error) {
+func (cr *VivaldiCore[SUPPORT]) GetClosestOf(guids []guid.Guid) ([]guid.Guid, error) {
 	min_distance := math.MaxFloat64
-	var retSlice []int64
+	var retSlice []guid.Guid
 
-	for _, guid := range guids {
-		point, ok := cr.nodesCache[guid]
+	for _, single_guid := range guids {
+		point, ok := cr.nodesCache[single_guid]
 		if !ok {
 			continue
 		}
 		guid_distance, err := cr.space.Distance(cr.myCoordinates, point.coords)
 		if err != nil {
-			return make([]int64, 0), errors.New("the points whose distance was asked do not belong to the same space")
+			return make([]guid.Guid, 0), errors.New("the points whose distance was asked do not belong to the same space")
 		}
 
 		if min_distance > guid_distance {
-			retSlice = append(make([]int64, 0), guid)
+			retSlice = append(make([]guid.Guid, 0), single_guid)
 			min_distance = guid_distance
 		} else if min_distance == guid_distance {
-			retSlice = append(retSlice, guid)
+			retSlice = append(retSlice, single_guid)
 		}
 	}
 
 	return retSlice, nil
 }
 
-func (cr *VivaldiCore[SUPPORT]) GetIsFailed(guid int64) bool {
+func (cr *VivaldiCore[SUPPORT]) GetIsFailed(guid guid.Guid) bool {
 	return cr.nodesCache[guid].isFailed
 }
 
@@ -74,7 +75,7 @@ func (cr *VivaldiCore[T]) GetCallback() func(rtt float64, metadata core.Metadata
 	return cr.callback
 }
 
-func NewVivaldiCore[SUPPORT float64 | complex128](myGuid int64, myCoords []SUPPORT, space *nvs.NormedVectorSpace[SUPPORT]) (*VivaldiCore[SUPPORT], error) {
+func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []SUPPORT, space *nvs.NormedVectorSpace[SUPPORT]) (*VivaldiCore[SUPPORT], error) {
 
 	if space.Dimension() == 0 {
 		return nil, errors.New("space malformed, please use the New* function to properly initialize one")
@@ -85,7 +86,7 @@ func NewVivaldiCore[SUPPORT float64 | complex128](myGuid int64, myCoords []SUPPO
 	}
 
 	cr := &VivaldiCore[SUPPORT]{
-		nodesCache:    make(map[int64]nodeData[SUPPORT]),
+		nodesCache:    make(map[guid.Guid]nodeData[SUPPORT]),
 		myCoordinates: space_coords,
 		myGUID:        myGuid,
 		space:         space,

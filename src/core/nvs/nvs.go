@@ -5,12 +5,13 @@ import (
 	"math"
 )
 
+/*
 type SpacePoint interface{}
 
-type Space interface {
-	Distance(*SpacePoint, *SpacePoint)
-}
-
+	type Space interface {
+		Distance(*SpacePoint, *SpacePoint)
+	}
+*/
 type NormedVectorSpace[SUPPORT float64 | complex128] struct {
 	dimension int
 	distance  func([]SUPPORT, []SUPPORT) float64
