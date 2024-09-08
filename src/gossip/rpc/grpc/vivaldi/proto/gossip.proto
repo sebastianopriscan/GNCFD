@@ -1,0 +1,29 @@
+syntax = "proto3" ;
+
+option go_package = "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/pb_go";
+
+import "space.proto" ;
+
+message NodeState {
+    string guid = 1 ;
+
+    Point coords = 2 ;
+    bool failed = 3;
+}
+
+message NodeUpdates {
+    optional string core_session = 1 ;
+    repeated NodeState updatePayload = 2 ;
+}
+
+message CoreSession {
+    string core_session = 1 ;
+}
+
+message PushReturn {}
+
+service GossipStatus {
+    rpc PushGossip(NodeUpdates) returns (PushReturn) ;
+    rpc PullGossip(CoreSession) returns (NodeUpdates) ;
+    rpc ExchangeGossip(NodeUpdates) returns (NodeUpdates) ;
+}

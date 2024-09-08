@@ -1,4 +1,4 @@
-package impl
+package vivaldi
 
 import (
 	"errors"
@@ -9,13 +9,13 @@ import (
 	"github.com/sebastianopriscan/GNCFD/core/nvs"
 )
 
-type nodeData[SUPPORT float64 | complex128] struct {
-	isFailed bool
-	coords   *nvs.Point[SUPPORT]
+type NodeData[SUPPORT float64 | complex128] struct {
+	IsFailed bool
+	Coords   *nvs.Point[SUPPORT]
 }
 
 type VivaldiCore[SUPPORT float64 | complex128] struct {
-	nodesCache    map[guid.Guid]nodeData[SUPPORT]
+	nodesCache    map[guid.Guid]NodeData[SUPPORT]
 	myGUID        guid.Guid
 	myCoordinates *nvs.Point[SUPPORT]
 	callback      func(rtt float64, metadata core.Metadata)
@@ -51,7 +51,7 @@ func (cr *VivaldiCore[SUPPORT]) GetClosestOf(guids []guid.Guid) ([]guid.Guid, er
 		if !ok {
 			continue
 		}
-		guid_distance, err := cr.space.Distance(cr.myCoordinates, point.coords)
+		guid_distance, err := cr.space.Distance(cr.myCoordinates, point.Coords)
 		if err != nil {
 			return make([]guid.Guid, 0), errors.New("the points whose distance was asked do not belong to the same space")
 		}
@@ -68,7 +68,7 @@ func (cr *VivaldiCore[SUPPORT]) GetClosestOf(guids []guid.Guid) ([]guid.Guid, er
 }
 
 func (cr *VivaldiCore[SUPPORT]) GetIsFailed(guid guid.Guid) bool {
-	return cr.nodesCache[guid].isFailed
+	return cr.nodesCache[guid].IsFailed
 }
 
 func (cr *VivaldiCore[T]) GetCallback() func(rtt float64, metadata core.Metadata) {
@@ -86,7 +86,7 @@ func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []S
 	}
 
 	cr := &VivaldiCore[SUPPORT]{
-		nodesCache:    make(map[guid.Guid]nodeData[SUPPORT]),
+		nodesCache:    make(map[guid.Guid]NodeData[SUPPORT]),
 		myCoordinates: space_coords,
 		myGUID:        myGuid,
 		space:         space,
