@@ -1,11 +1,6 @@
 syntax = "proto3" ;
 
-option go_package = "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/pb_go";
-
-enum Support {
-    REAL  = 0 ;
-    CMPLX = 1 ;
-}
+option go_package = "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go";
 
 message CoordStream {
     repeated double coords = 1 ;
@@ -13,7 +8,6 @@ message CoordStream {
 
 message Point {
     int64 dimension = 1 ;
-    Support support = 2 ;
     CoordStream coord_real = 3 ;
     optional CoordStream coord_im = 4 ;
 }

@@ -43,24 +43,24 @@ func (vgc *VivaldiRPCGossipClient) Release() error {
 	return nil
 }
 
-func asPointsFloat(session string, updates map[guid.Guid]vivaldi.NodeData[float64]) []*pb_go.NodeState {
+func asPointsFloat(updates vivaldi.VivaldiMetadata[float64]) []*pb_go.NodeState {
 	retVal := make([]*pb_go.NodeState, 0)
 
-	for k, v := range updates {
-		coordinates := v.Coords.GetCoordinates()
+	for k, v := range updates.Data {
+		coordinates := v.Coords
 		coordReal := &pb_go.CoordStream{Coords: coordinates}
-		point := &pb_go.Point{Dimension: int64(len(coordinates)), CoordReal: coordReal, Support: pb_go.Support_REAL}
+		point := &pb_go.Point{Dimension: int64(len(coordinates)), CoordReal: coordReal}
 		retVal = append(retVal, &pb_go.NodeState{Guid: k.String(), Coords: point, Failed: v.IsFailed})
 	}
 
 	return retVal
 }
 
-func asPointsCmplx(session string, updates map[guid.Guid]vivaldi.NodeData[complex128]) []*pb_go.NodeState {
+func asPointsCmplx(updates vivaldi.VivaldiMetadata[complex128]) []*pb_go.NodeState {
 	retVal := make([]*pb_go.NodeState, 0)
 
-	for k, v := range updates {
-		coordinates := v.Coords.GetCoordinates()
+	for k, v := range updates.Data {
+		coordinates := v.Coords
 		re_coords := make([]float64, 0)
 		im_coords := make([]float64, 0)
 
@@ -71,36 +71,131 @@ func asPointsCmplx(session string, updates map[guid.Guid]vivaldi.NodeData[comple
 
 		coordReal := &pb_go.CoordStream{Coords: re_coords}
 		coordIm := &pb_go.CoordStream{Coords: im_coords}
-		point := &pb_go.Point{Dimension: int64(len(coordinates)), CoordReal: coordReal, CoordIm: coordIm, Support: pb_go.Support_CMPLX}
+		point := &pb_go.Point{Dimension: int64(len(coordinates)), CoordReal: coordReal, CoordIm: coordIm}
 		retVal = append(retVal, &pb_go.NodeState{Guid: k.String(), Coords: point, Failed: v.IsFailed})
 	}
 
 	return retVal
 }
 
-func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore) error {
+func asNodeDataReal(array []*pb_go.NodeState) (map[guid.Guid]vivaldi.VivaldiMetaCoor[float64], error) {
+
+	retVal := make(map[guid.Guid]vivaldi.VivaldiMetaCoor[float64])
+
+	for i := 0; i < len(array); i++ {
+		guid, err := guid.Deserialize([]byte(array[i].Guid))
+		if err != nil {
+			return nil, errors.New("error: wrong guid format")
+		}
+
+		nodeData := vivaldi.VivaldiMetaCoor[float64]{}
+		nodeData.IsFailed = array[i].Failed
+		nodeData.Coords = array[i].Coords.CoordReal.Coords
+
+		retVal[guid] = nodeData
+	}
+
+	return retVal, nil
+}
+
+func asNodeDataCmplx(array []*pb_go.NodeState) (map[guid.Guid]vivaldi.VivaldiMetaCoor[complex128], error) {
+
+	retVal := make(map[guid.Guid]vivaldi.VivaldiMetaCoor[complex128])
+
+	for i := 0; i < len(array); i++ {
+		guid, err := guid.Deserialize([]byte(array[i].Guid))
+		if err != nil {
+			return nil, errors.New("error deserializing a node's guid")
+		}
+
+		nodeData := vivaldi.VivaldiMetaCoor[complex128]{}
+		nodeData.IsFailed = array[i].Failed
+
+		cmplxCoords := make([]complex128, 0)
+
+		for j := int64(0); j < array[i].Coords.Dimension; j++ {
+
+			re := array[i].Coords.CoordReal.Coords[j]
+			im := array[i].Coords.CoordIm.Coords[j]
+
+			cmplxCoords = append(cmplxCoords, complex(re, im))
+		}
+
+		nodeData.Coords = cmplxCoords
+
+		retVal[guid] = nodeData
+	}
+
+	return retVal, nil
+}
+
+func preparePush(nodeCore core.GNCFDCore) ([]*pb_go.NodeState, error) {
 
 	if nodeCore.GetKind() != core_code {
-		return errors.New("error: the requested core is incompatible with this gossip client")
+		return nil, errors.New("error: the requested core is incompatible with this gossip client")
 	}
 
 	updates, err := nodeCore.GetStateUpdates()
 	if err != nil {
-		return fmt.Errorf("unable to get state updates, details: %s", err)
+		return nil, fmt.Errorf("unable to get state updates, details: %s", err)
 	}
 
 	var pointsToSend []*pb_go.NodeState
 	switch updatedPoints := updates.(type) {
-	case map[guid.Guid]vivaldi.NodeData[float64]:
-		pointsToSend = asPointsFloat(nodeCore.GetCoreSession().String(), updatedPoints)
-	case map[guid.Guid]vivaldi.NodeData[complex128]:
-		pointsToSend = asPointsCmplx(nodeCore.GetCoreSession().String(), updatedPoints)
+	case vivaldi.VivaldiMetadata[float64]:
+		pointsToSend = asPointsFloat(updatedPoints)
+	case vivaldi.VivaldiMetadata[complex128]:
+		pointsToSend = asPointsCmplx(updatedPoints)
 	default:
-		return errors.New("wrong metadata format")
+		return nil, errors.New("wrong metadata format")
+	}
+
+	return pointsToSend, nil
+}
+
+func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates) error {
+
+	guid, err := guid.Deserialize([]byte(nodeUpdates.CoreSession))
+	if err != nil {
+		return errors.New("error in deserializing session guid")
+	}
+
+	if nodeUpdates.Support == pb_go.Support_REAL {
+		meta_data, err := asNodeDataReal(nodeUpdates.UpdatePayload)
+		if err != nil {
+			return fmt.Errorf("error in data translation, details: %s", err)
+		}
+		meta := vivaldi.VivaldiMetadata[float64]{Session: guid, Data: meta_data}
+		err = nodeCore.UpdateState(meta)
+		if err != nil {
+			return fmt.Errorf("error in state update, details: %s", err)
+		}
+	} else if nodeUpdates.Support == pb_go.Support_CMPLX {
+		meta_data, err := asNodeDataCmplx(nodeUpdates.UpdatePayload)
+		if err != nil {
+			return fmt.Errorf("error in data translation, details: %s", err)
+		}
+		meta := vivaldi.VivaldiMetadata[complex128]{Session: guid, Data: meta_data}
+		err = nodeCore.UpdateState(meta)
+		if err != nil {
+			return fmt.Errorf("error in state update, details: %s", err)
+		}
+	} else {
+		return fmt.Errorf("error: unknown support")
+	}
+
+	return nil
+}
+
+func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore) error {
+
+	pointsToSend, err := preparePush(nodeCore)
+	if err != nil {
+		return fmt.Errorf("error in parameters preparation, details: %s", err)
 	}
 
 	session := nodeCore.GetCoreSession().String()
-	_, err = gc.client.PushGossip(context.Background(), &pb_go.NodeUpdates{CoreSession: &session, UpdatePayload: pointsToSend})
+	_, err = gc.client.PushGossip(context.Background(), &pb_go.NodeUpdates{CoreSession: session, UpdatePayload: pointsToSend})
 	if err != nil {
 		return fmt.Errorf("unable to push state updates, details: %s", err)
 	}
@@ -110,12 +205,30 @@ func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore) error {
 
 func (gc *VivaldiRPCGossipClient) Pull(nodeCore core.GNCFDCore) error {
 
+	if nodeCore.GetKind() != core_code {
+		return errors.New("error: the requested core is incompatible with this gossip client")
+	}
+
 	nodeUpdates, err := gc.client.PullGossip(context.Background(), &pb_go.CoreSession{CoreSession: nodeCore.GetCoreSession().String()})
 	if err != nil {
 		return fmt.Errorf("error in pull invocation, details: %s", err)
 	}
 
-	for _, update := range nodeUpdates.UpdatePayload {
+	return executePull(nodeCore, nodeUpdates)
+}
 
+func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore) error {
+
+	pointsToSend, err := preparePush(nodeCore)
+	if err != nil {
+		return fmt.Errorf("error in parameters preparation, details: %s", err)
 	}
+
+	session := nodeCore.GetCoreSession().String()
+	nodeUpdates, err := vgc.client.ExchangeGossip(context.Background(), &pb_go.NodeUpdates{CoreSession: session, UpdatePayload: pointsToSend})
+	if err != nil {
+		return fmt.Errorf("unable to push state updates, details: %s", err)
+	}
+
+	return executePull(nodeCore, nodeUpdates)
 }

@@ -1,8 +1,13 @@
 syntax = "proto3" ;
 
-option go_package = "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/pb_go";
+option go_package = "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go";
 
 import "space.proto" ;
+
+enum Support {
+    REAL  = 0 ;
+    CMPLX = 1 ;
+}
 
 message NodeState {
     string guid = 1 ;
@@ -12,8 +17,9 @@ message NodeState {
 }
 
 message NodeUpdates {
-    optional string core_session = 1 ;
-    repeated NodeState updatePayload = 2 ;
+    string core_session = 1 ;
+    Support support = 2 ;
+    repeated NodeState updatePayload = 3 ;
 }
 
 message CoreSession {

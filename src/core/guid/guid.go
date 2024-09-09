@@ -42,7 +42,7 @@ func convert_byte(b byte) (byte, error) {
 	}
 }
 
-func deserialize(str []byte) (Guid, error) {
+func Deserialize(str []byte) (Guid, error) {
 
 	retVal := Guid{}
 	pos := 0
@@ -81,6 +81,6 @@ func GenerateGUID() (Guid, error) {
 	}
 	bArr = bArr[0 : len(bArr)-1]
 
-	return deserialize(bArr)
+	return Deserialize(bArr)
 
 }

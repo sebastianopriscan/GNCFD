@@ -98,3 +98,13 @@ func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []S
 
 	return cr, nil
 }
+
+type VivaldiMetaCoor[SUPPORT float64 | complex128] struct {
+	IsFailed bool
+	Coords   []SUPPORT
+}
+
+type VivaldiMetadata[SUPPORT float64 | complex128] struct {
+	Session guid.Guid
+	Data    map[guid.Guid]VivaldiMetaCoor[SUPPORT]
+}

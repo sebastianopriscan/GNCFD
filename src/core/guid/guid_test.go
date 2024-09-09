@@ -29,7 +29,7 @@ func TestGuidGeneration(t *testing.T) {
 	}
 	bArr = bArr[0 : len(bArr)-1]
 
-	des, err := deserialize(bArr)
+	des, err := Deserialize(bArr)
 
 	if err != nil {
 		t.Fatalf("Deserialization error")
