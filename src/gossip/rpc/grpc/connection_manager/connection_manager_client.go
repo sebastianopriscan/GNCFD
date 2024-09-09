@@ -20,7 +20,7 @@ var mu sync.Mutex
 var openCommunications map[guid.Guid]connCount = make(map[guid.Guid]connCount)
 
 type GrpcCommunicationChannel struct {
-	Peer    guid.Guid
+	peer    guid.Guid
 	Address string
 	Conn    *grpc.ClientConn
 	set     bool
@@ -53,7 +53,7 @@ func NewGrpcCommunicationChannel(peer guid.Guid, address string) (*GrpcCommunica
 
 	mu.Unlock()
 
-	retVal.Peer = peer
+	retVal.peer = peer
 	retVal.Address = address
 	retVal.Conn = conn
 	retVal.set = true
@@ -69,10 +69,10 @@ func InvalidateGrpcCommunicationChannel(chann *GrpcCommunicationChannel) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	cnct := openCommunications[chann.Peer]
+	cnct := openCommunications[chann.peer]
 
 	if cnct.count == 1 {
-		delete(openCommunications, chann.Peer)
+		delete(openCommunications, chann.peer)
 	} else {
 		cnct.count--
 	}
