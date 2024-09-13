@@ -18,5 +18,5 @@ type GNCFDCore interface {
 	GetStateUpdates() (Metadata, error)
 	UpdateState(metadata Metadata) error
 
-	GetCallback() func(rtt float64, metadata Metadata)
+	SignalFailed(peers []guid.Guid)
 }

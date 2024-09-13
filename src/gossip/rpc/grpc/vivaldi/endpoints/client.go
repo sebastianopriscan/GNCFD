@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/sebastianopriscan/GNCFD/core"
 	"github.com/sebastianopriscan/GNCFD/core/guid"
 	"github.com/sebastianopriscan/GNCFD/core/impl/vivaldi"
 	connectionmanager "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/connection_manager"
 	"github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go"
+	"github.com/sebastianopriscan/GNCFD/utils/ntptime"
 )
 
 type VivaldiRPCGossipClient struct {
@@ -54,6 +56,7 @@ func preparePush(nodeCore core.GNCFDCore) (*pb_go.NodeUpdates, error) {
 
 	var pointsToSend pb_go.NodeUpdates
 	pointsToSend.CoreSession = nodeCore.GetCoreSession().String()
+
 	switch updatedPoints := updates.(type) {
 	case vivaldi.VivaldiMetadata[float64]:
 		pointsToSend.Support = pb_go.Support_REAL
@@ -68,11 +71,16 @@ func preparePush(nodeCore core.GNCFDCore) (*pb_go.NodeUpdates, error) {
 	return &pointsToSend, nil
 }
 
-func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates) error {
+func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates, time int64) error {
 
-	guid, err := guid.Deserialize([]byte(nodeUpdates.CoreSession))
+	sessGuid, err := guid.Deserialize([]byte(nodeUpdates.CoreSession))
 	if err != nil {
 		return errors.New("error in deserializing session guid")
+	}
+
+	sender, err := guid.Deserialize([]byte(nodeUpdates.Sender))
+	if err != nil {
+		return errors.New("error in deserializing sender guid")
 	}
 
 	if nodeUpdates.Support == pb_go.Support_REAL {
@@ -80,7 +88,12 @@ func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates) error 
 		if err != nil {
 			return fmt.Errorf("error in data translation, details: %s", err)
 		}
-		meta := vivaldi.VivaldiMetadata[float64]{Session: guid, Data: meta_data}
+		meta := vivaldi.VivaldiMetadata[float64]{
+			Session:      sessGuid,
+			Data:         meta_data,
+			Rtt:          math.Abs(float64(time - nodeUpdates.Timestamp)),
+			Communicator: sender,
+		}
 		err = nodeCore.UpdateState(meta)
 		if err != nil {
 			return fmt.Errorf("error in state update, details: %s", err)
@@ -90,7 +103,12 @@ func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates) error 
 		if err != nil {
 			return fmt.Errorf("error in data translation, details: %s", err)
 		}
-		meta := vivaldi.VivaldiMetadata[complex128]{Session: guid, Data: meta_data}
+		meta := vivaldi.VivaldiMetadata[complex128]{
+			Session:      sessGuid,
+			Data:         meta_data,
+			Rtt:          math.Abs(float64(time - nodeUpdates.Timestamp)),
+			Communicator: sender,
+		}
 		err = nodeCore.UpdateState(meta)
 		if err != nil {
 			return fmt.Errorf("error in state update, details: %s", err)
@@ -108,6 +126,18 @@ func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore) error {
 	if err != nil {
 		return fmt.Errorf("error in parameters preparation, details: %s", err)
 	}
+
+	messID, err := guid.GenerateGUID()
+	if err != nil {
+		return fmt.Errorf("error in message ID geenration, datails: %s", err)
+	}
+	pointsToSend.MessageID = messID.String()
+
+	time, err := ntptime.GetNTPTime()
+	if err != nil {
+		return fmt.Errorf("error in parameters preparation, details: %s", err)
+	}
+	pointsToSend.Timestamp = time.UnixNano()
 
 	_, err = gc.client.PushGossip(context.Background(), pointsToSend)
 	if err != nil {
@@ -128,7 +158,13 @@ func (gc *VivaldiRPCGossipClient) Pull(nodeCore core.GNCFDCore) error {
 		return fmt.Errorf("error in pull invocation, details: %s", err)
 	}
 
-	return executePull(nodeCore, nodeUpdates)
+	nowTime, err := ntptime.GetNTPTime()
+	if err != nil {
+		return fmt.Errorf("error in timestamp creation, details: %s", err)
+	}
+	now := nowTime.UnixNano()
+
+	return executePull(nodeCore, nodeUpdates, now)
 }
 
 func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore) error {
@@ -138,10 +174,27 @@ func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore) error {
 		return fmt.Errorf("error in parameters preparation, details: %s", err)
 	}
 
+	messID, err := guid.GenerateGUID()
+	if err != nil {
+		return fmt.Errorf("error in message ID geenration, datails: %s", err)
+	}
+	pointsToSend.MessageID = messID.String()
+
+	time, err := ntptime.GetNTPTime()
+	if err != nil {
+		return fmt.Errorf("error in parameters preparation, details: %s", err)
+	}
+	pointsToSend.Timestamp = time.UnixNano()
+
 	nodeUpdates, err := vgc.client.ExchangeGossip(context.Background(), pointsToSend)
 	if err != nil {
 		return fmt.Errorf("unable to push state updates, details: %s", err)
 	}
 
-	return executePull(nodeCore, nodeUpdates)
+	time, err = ntptime.GetNTPTime()
+	if err != nil {
+		return fmt.Errorf("error in parameters preparation, details: %s", err)
+	}
+
+	return executePull(nodeCore, nodeUpdates, time.UnixNano())
 }

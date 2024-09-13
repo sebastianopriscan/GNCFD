@@ -2,6 +2,7 @@ package nvs
 
 import (
 	"errors"
+	"fmt"
 	"math"
 )
 
@@ -13,8 +14,10 @@ type SpacePoint interface{}
 	}
 */
 type NormedVectorSpace[SUPPORT float64 | complex128] struct {
-	dimension int
-	distance  func([]SUPPORT, []SUPPORT) float64
+	dimension   int
+	distance    func([]SUPPORT, []SUPPORT) float64
+	rescaling   func([]SUPPORT, float64) []SUPPORT
+	externalMul func([]SUPPORT, float64) []SUPPORT
 }
 
 func (nvs *NormedVectorSpace[SUPPORT]) Distance(first *Point[SUPPORT], second *Point[SUPPORT]) (float64, error) {
@@ -32,7 +35,50 @@ func (nvs *NormedVectorSpace[SUPPORT]) Dimension() int {
 	return nvs.dimension
 }
 
-func NewNormedVectorSpace[SUPPORT float64 | complex128](dim int, distance func([]SUPPORT, []SUPPORT) float64) (*NormedVectorSpace[SUPPORT], error) {
+func (nvs *NormedVectorSpace[SUPPORT]) UnitVector(first *Point[SUPPORT], second *Point[SUPPORT]) (*Point[SUPPORT], error) {
+	if nvs.dimension <= 0 || nvs.distance == nil {
+		return nil, errors.New("dim should be greater than 0 and distance should not be nil")
+	}
+	if first.space != nvs || second.space != nvs {
+		return nil, errors.New("the points do not belong to this space")
+	}
+
+	norm, err := nvs.Distance(first, second)
+	if err != nil {
+		return nil, fmt.Errorf("error in distance evaluation, details: %s", err)
+	}
+
+	toRescale := make([]SUPPORT, nvs.dimension)
+	for i := 0; i < nvs.dimension; i++ {
+		toRescale[i] = first.GetCoordinates()[i] - second.coordinates[i]
+	}
+
+	rescaled := nvs.rescaling(toRescale, norm)
+
+	retPoint, err := NewPoint(nvs, rescaled)
+	if err != nil {
+		return nil, fmt.Errorf("error in new point creation, details: %s", err)
+	}
+
+	return retPoint, nil
+}
+
+func (nvs *NormedVectorSpace[SUPPORT]) ExternalMul(pt *Point[SUPPORT], val float64) (*Point[SUPPORT], error) {
+	if nvs.dimension <= 0 || nvs.distance == nil {
+		return nil, errors.New("dim should be greater than 0 and distance should not be nil")
+	}
+	if pt.space != nvs {
+		return nil, errors.New("the point does not belong to this space")
+	}
+
+	newCoords := nvs.externalMul(pt.coordinates, val)
+
+	return NewPoint(nvs, newCoords)
+}
+
+func NewNormedVectorSpace[SUPPORT float64 | complex128](dim int, distance func([]SUPPORT, []SUPPORT) float64,
+	rescale func([]SUPPORT, float64) []SUPPORT, exmul func([]SUPPORT, float64) []SUPPORT) (*NormedVectorSpace[SUPPORT], error) {
+
 	if dim <= 0 || distance == nil {
 		return nil, errors.New("dim should be greater than 0 and distance should be nil")
 	}
@@ -48,8 +94,27 @@ func euclideanNorm(first []float64, second []float64) float64 {
 	return math.Sqrt(sum)
 }
 
+func euclideanRescale(vector []float64, norm float64) []float64 {
+	retVal := make([]float64, len(vector))
+	for i, entry := range vector {
+		retVal[i] = entry / norm
+	}
+
+	return retVal
+}
+
+func euclideanExMul(vector []float64, val float64) []float64 {
+
+	retVal := make([]float64, len(vector))
+	for i, entry := range vector {
+		retVal[i] = entry * val
+	}
+
+	return retVal
+}
+
 func NewRealEuclideanSpace(dim int) (*NormedVectorSpace[float64], error) {
-	return NewNormedVectorSpace(dim, euclideanNorm)
+	return NewNormedVectorSpace(dim, euclideanNorm, euclideanRescale, euclideanExMul)
 }
 
 type Point[SUPPORT float64 | complex128] struct {

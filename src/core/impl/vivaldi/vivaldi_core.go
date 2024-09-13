@@ -2,24 +2,32 @@ package vivaldi
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/sebastianopriscan/GNCFD/core"
 	"github.com/sebastianopriscan/GNCFD/core/guid"
 	"github.com/sebastianopriscan/GNCFD/core/nvs"
+	"github.com/sebastianopriscan/GNCFD/gossip"
 )
 
-type NodeData[SUPPORT float64 | complex128] struct {
+type nodeData[SUPPORT float64 | complex128] struct {
 	IsFailed bool
 	Coords   *nvs.Point[SUPPORT]
+	Updated  bool
 }
 
 type VivaldiCore[SUPPORT float64 | complex128] struct {
-	nodesCache    map[guid.Guid]NodeData[SUPPORT]
+	gossip.ChannelObserverSubjectImpl
+
+	nodesCache    map[guid.Guid]*nodeData[SUPPORT]
 	myGUID        guid.Guid
 	myCoordinates *nvs.Point[SUPPORT]
-	callback      func(rtt float64, metadata core.Metadata)
 	space         *nvs.NormedVectorSpace[SUPPORT]
+
+	session guid.Guid
+
+	delta float64
 }
 
 /*
@@ -71,11 +79,144 @@ func (cr *VivaldiCore[SUPPORT]) GetIsFailed(guid guid.Guid) bool {
 	return cr.nodesCache[guid].IsFailed
 }
 
-func (cr *VivaldiCore[T]) GetCallback() func(rtt float64, metadata core.Metadata) {
-	return cr.callback
+func (cr *VivaldiCore[SUPPORT]) GetCoreSession() guid.Guid {
+	return cr.session
 }
 
-func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []SUPPORT, space *nvs.NormedVectorSpace[SUPPORT]) (*VivaldiCore[SUPPORT], error) {
+func (cr *VivaldiCore[SUPPORT]) SetCoreSession(guid guid.Guid) {
+	cr.session = guid
+}
+
+func (cr *VivaldiCore[SUPPORT]) GetKind() string {
+	return "Vivaldi"
+}
+
+func (cr *VivaldiCore[SUPPORT]) GetStateUpdates() (core.Metadata, error) {
+
+	retVal := &VivaldiMetadata[SUPPORT]{Session: cr.session}
+
+	data := make(map[guid.Guid]VivaldiMetaCoor[SUPPORT])
+
+	data[cr.myGUID] = VivaldiMetaCoor[SUPPORT]{
+		IsFailed: false,
+		Coords:   cr.myCoordinates.GetCoordinates(),
+	}
+
+	for k, v := range cr.nodesCache {
+		if v.Updated {
+			data[k] = VivaldiMetaCoor[SUPPORT]{
+				IsFailed: v.IsFailed,
+				Coords:   v.Coords.GetCoordinates(),
+			}
+
+			v.Updated = false
+		}
+	}
+
+	return retVal, nil
+}
+
+func updatePoint[SUPPORT float64 | complex128](*nvs.Point[SUPPORT], []SUPPORT) {
+	//TODO : Decide if a general coordinate update should be needed and eventually customizable
+}
+
+func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, communicator guid.Guid) {
+
+	commData, present := cr.nodesCache[communicator]
+	if !present {
+		return
+	}
+	commCoords := commData.Coords
+
+	dist, err := cr.space.Distance(cr.myCoordinates, commCoords)
+	if err != nil {
+		return
+	}
+
+	e := rtt - dist
+	unit, err := cr.space.UnitVector(cr.myCoordinates, commCoords)
+	if err != nil {
+		return
+	}
+
+	mulPt, err := cr.space.ExternalMul(unit, e*cr.delta)
+	if err != nil {
+		return
+	}
+
+	newCoordinates := make([]SUPPORT, cr.space.Dimension())
+	myCoords := cr.myCoordinates.GetCoordinates()
+	mulPt_coors := mulPt.GetCoordinates()
+
+	for i := 0; i < cr.space.Dimension(); i++ {
+
+		newCoordinates[i] = myCoords[i] + mulPt_coors[i]
+	}
+
+	cr.myCoordinates.SetCoordinates(newCoordinates)
+}
+
+func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
+	nodes, ok := metadata.(VivaldiMetadata[SUPPORT])
+	if !ok {
+		return errors.New("error: bad metadata passed")
+	}
+
+	if nodes.Session != cr.session {
+		return errors.New("error : incompatible core session")
+	}
+
+	var err error = nil
+	for guid, data := range nodes.Data {
+		node, present := cr.nodesCache[guid]
+		if present {
+			node.IsFailed = data.IsFailed
+			updatePoint(node.Coords, data.Coords)
+			node.Updated = true
+		} else {
+
+			var point *nvs.Point[SUPPORT]
+			point, err = nvs.NewPoint(cr.space, data.Coords)
+			if err != nil {
+				err = fmt.Errorf("error : at least an error has been encountered, details : %s", err)
+				continue
+			}
+
+			node = &nodeData[SUPPORT]{
+				IsFailed: data.IsFailed,
+				Updated:  true,
+				Coords:   point,
+			}
+
+			cr.nodesCache[guid] = node
+		}
+	}
+
+	cr.vivaldi_update(nodes.Rtt, nodes.Communicator)
+
+	upd, errup := cr.GetStateUpdates()
+	if errup == nil {
+		cr.PushToChannels(upd)
+	} else {
+		err = fmt.Errorf("%s. moreover, node updated state retrieval failed, details: %s", err, errup)
+	}
+
+	return err
+}
+
+func (cr *VivaldiCore[SUPPORT]) SignalFailed(peers []guid.Guid) {
+	for _, peer := range peers {
+		data, present := cr.nodesCache[peer]
+		if !present {
+			continue
+		}
+		data.IsFailed = true
+		data.Updated = true
+	}
+}
+
+func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []SUPPORT, space *nvs.NormedVectorSpace[SUPPORT],
+	delta float64) (*VivaldiCore[SUPPORT], error) {
 
 	if space.Dimension() == 0 {
 		return nil, errors.New("space malformed, please use the New* function to properly initialize one")
@@ -86,14 +227,11 @@ func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []S
 	}
 
 	cr := &VivaldiCore[SUPPORT]{
-		nodesCache:    make(map[guid.Guid]NodeData[SUPPORT]),
+		nodesCache:    make(map[guid.Guid]*nodeData[SUPPORT]),
 		myCoordinates: space_coords,
 		myGUID:        myGuid,
 		space:         space,
-	}
-
-	cr.callback = func(rtt float64, metadata core.Metadata) {
-		//The Vivaldi algorithm
+		delta:         delta,
 	}
 
 	return cr, nil
@@ -107,4 +245,7 @@ type VivaldiMetaCoor[SUPPORT float64 | complex128] struct {
 type VivaldiMetadata[SUPPORT float64 | complex128] struct {
 	Session guid.Guid
 	Data    map[guid.Guid]VivaldiMetaCoor[SUPPORT]
+
+	Rtt          float64
+	Communicator guid.Guid
 }

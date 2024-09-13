@@ -20,6 +20,10 @@ message NodeUpdates {
     string core_session = 1 ;
     Support support = 2 ;
     repeated NodeState updatePayload = 3 ;
+
+    string sender = 4 ;
+    string messageID = 5 ;
+    int64 timestamp = 6 ;
 }
 
 message CoreSession {
