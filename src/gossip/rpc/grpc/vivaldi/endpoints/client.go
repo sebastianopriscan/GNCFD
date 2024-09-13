@@ -15,11 +15,12 @@ import (
 )
 
 type VivaldiRPCGossipClient struct {
+	me     guid.Guid
 	client pb_go.GossipStatusClient
 	conn   *connectionmanager.GrpcCommunicationChannel
 }
 
-func NewVivaldiRPCGossipClient(peer guid.Guid, address string) (*VivaldiRPCGossipClient, error) {
+func NewVivaldiRPCGossipClient(me guid.Guid, peer guid.Guid, address string) (*VivaldiRPCGossipClient, error) {
 	retVal := &VivaldiRPCGossipClient{}
 
 	conn, err := connectionmanager.NewGrpcCommunicationChannel(peer, address)
@@ -28,6 +29,8 @@ func NewVivaldiRPCGossipClient(peer guid.Guid, address string) (*VivaldiRPCGossi
 	}
 
 	retVal.client = pb_go.NewGossipStatusClient(conn.Conn)
+	retVal.conn = conn
+	retVal.me = me
 
 	return retVal, nil
 }
@@ -43,15 +46,10 @@ func (vgc *VivaldiRPCGossipClient) Release() error {
 	return nil
 }
 
-func preparePush(nodeCore core.GNCFDCore) (*pb_go.NodeUpdates, error) {
+func preparePush(nodeCore core.GNCFDCore, updates core.Metadata) (*pb_go.NodeUpdates, error) {
 
 	if nodeCore.GetKind() != core_code {
 		return nil, errors.New("error: the requested core is incompatible with this gossip client")
-	}
-
-	updates, err := nodeCore.GetStateUpdates()
-	if err != nil {
-		return nil, fmt.Errorf("unable to get state updates, details: %s", err)
 	}
 
 	var pointsToSend pb_go.NodeUpdates
@@ -120,18 +118,15 @@ func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates, time i
 	return nil
 }
 
-func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore) error {
+func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore, coreData core.Metadata, messageID guid.Guid) error {
 
-	pointsToSend, err := preparePush(nodeCore)
+	pointsToSend, err := preparePush(nodeCore, coreData)
 	if err != nil {
 		return fmt.Errorf("error in parameters preparation, details: %s", err)
 	}
 
-	messID, err := guid.GenerateGUID()
-	if err != nil {
-		return fmt.Errorf("error in message ID geenration, datails: %s", err)
-	}
-	pointsToSend.MessageID = messID.String()
+	pointsToSend.MessageID = messageID.String()
+	pointsToSend.Sender = gc.me.String()
 
 	time, err := ntptime.GetNTPTime()
 	if err != nil {
@@ -167,18 +162,14 @@ func (gc *VivaldiRPCGossipClient) Pull(nodeCore core.GNCFDCore) error {
 	return executePull(nodeCore, nodeUpdates, now)
 }
 
-func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore) error {
+func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore, coreData core.Metadata, messageID guid.Guid) error {
 
-	pointsToSend, err := preparePush(nodeCore)
+	pointsToSend, err := preparePush(nodeCore, coreData)
 	if err != nil {
 		return fmt.Errorf("error in parameters preparation, details: %s", err)
 	}
 
-	messID, err := guid.GenerateGUID()
-	if err != nil {
-		return fmt.Errorf("error in message ID geenration, datails: %s", err)
-	}
-	pointsToSend.MessageID = messID.String()
+	pointsToSend.MessageID = messageID.String()
 
 	time, err := ntptime.GetNTPTime()
 	if err != nil {

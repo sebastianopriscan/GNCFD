@@ -194,12 +194,8 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 
 	cr.vivaldi_update(nodes.Rtt, nodes.Communicator)
 
-	upd, errup := cr.GetStateUpdates()
-	if errup == nil {
-		cr.PushToChannels(upd)
-	} else {
-		err = fmt.Errorf("%s. moreover, node updated state retrieval failed, details: %s", err, errup)
-	}
+	//Classical Observer notify, the observers will keep a reference to the core to get the updates
+	cr.PushToChannels(true)
 
 	return err
 }

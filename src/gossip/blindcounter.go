@@ -1,6 +1,7 @@
 package gossip
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/sebastianopriscan/GNCFD/core"
@@ -8,9 +9,9 @@ import (
 )
 
 type MessageToForward struct {
-	messageID guid.Guid
-	sender    guid.Guid
-	payload   any
+	MessageID guid.Guid
+	Sender    guid.Guid
+	Payload   any
 }
 
 type messageHistory struct {
@@ -85,7 +86,7 @@ func (bgc *BlindCounterGossiper) InsertGossip() bool {
 
 func do_gossip_forward(bcg *BlindCounterGossiper, msg_history *messageHistory, forwdMsg *MessageToForward) {
 
-	msg_history.already_sent_peers[forwdMsg.sender] = forwdMsg.sender
+	msg_history.already_sent_peers[forwdMsg.Sender] = forwdMsg.Sender
 
 	b_neighbors := make([]guid.Guid, bcg.B)
 	b_neigh_idx := 0
@@ -103,7 +104,7 @@ func do_gossip_forward(bcg *BlindCounterGossiper, msg_history *messageHistory, f
 
 	failedPeers := make([]guid.Guid, 0, bcg.B)
 	for i := 0; i < b_neigh_idx; i++ {
-		err := bcg.peers.peers[b_neighbors[i]].Forward(forwdMsg.payload)
+		err := bcg.peers.peers[b_neighbors[i]].Forward(forwdMsg.Payload)
 		if err != nil {
 			failedPeers = append(failedPeers, b_neighbors[i])
 		} else {
@@ -115,6 +116,53 @@ func do_gossip_forward(bcg *BlindCounterGossiper, msg_history *messageHistory, f
 	bcg.core.SignalFailed(failedPeers)
 
 	msg_history.patience--
+}
+
+func do_gossip_push(bcg *BlindCounterGossiper) error {
+
+	messageID, err := guid.GenerateGUID()
+	if err != nil {
+		return fmt.Errorf("error generating message guid, details: %s", err)
+	}
+
+	bcg.history[messageID] = &messageHistory{patience: bcg.F, already_sent_peers: make(map[guid.Guid]guid.Guid)}
+	msg_history := bcg.history[messageID]
+
+	b_neighbors := make([]guid.Guid, bcg.B)
+	b_neigh_idx := 0
+
+	bcg.peers.mu.Lock()
+	for neigh := range bcg.peers.peers {
+		if _, present := msg_history.already_sent_peers[neigh]; !present {
+			b_neighbors[b_neigh_idx] = neigh
+			b_neigh_idx++
+			if b_neigh_idx == bcg.B {
+				break
+			}
+		}
+	}
+
+	updates, err := bcg.core.GetStateUpdates()
+	if err != nil {
+		return fmt.Errorf("error getting core updates for pushing, details: %s", err)
+	}
+
+	failedPeers := make([]guid.Guid, 0, bcg.B)
+	for i := 0; i < b_neigh_idx; i++ {
+		err := bcg.peers.peers[b_neighbors[i]].Push(bcg.core, updates, messageID)
+		if err != nil {
+			failedPeers = append(failedPeers, b_neighbors[i])
+		} else {
+			msg_history.already_sent_peers[b_neighbors[i]] = b_neighbors[i]
+		}
+	}
+	bcg.peers.mu.Unlock()
+
+	bcg.core.SignalFailed(failedPeers)
+
+	msg_history.patience--
+
+	return nil
 }
 
 func (bcg *BlindCounterGossiper) gossip_routine() {
@@ -131,53 +179,42 @@ func (bcg *BlindCounterGossiper) gossip_routine() {
 			}
 
 		case <-bcg.inputchann:
-			data, err := bcg.core.GetStateUpdates()
-			if err != nil {
-				log.Printf("unable to get core updates, details: %s", err)
-				continue
-			}
-
-			forwdMsg, ok := data.(MessageToForward)
-			if !ok {
-				log.Printf("message passed in bad format, skipping")
-				continue
-			}
-
-			bcg.history[forwdMsg.messageID] = &messageHistory{patience: bcg.F,
-				already_sent_peers: make(map[guid.Guid]guid.Guid)}
-
-			do_gossip_forward(bcg, bcg.history[forwdMsg.messageID], &forwdMsg)
+			do_gossip_push(bcg)
 
 		default:
 			for _, v := range bcg.Registrations {
 				select {
 				case data := <-v.chann:
-					forwdMsg, ok := data.(MessageToForward)
-					if !ok {
-						log.Printf("message passed in bad format, skipping")
-						continue
-					}
 
-					msg_history, ok := bcg.history[forwdMsg.messageID]
-					if !ok {
-						bcg.history[forwdMsg.messageID] = &messageHistory{patience: bcg.F,
-							already_sent_peers: make(map[guid.Guid]guid.Guid, 0)}
+					switch mssg := data.(type) {
+					case MessageToForward:
+						msg_history, ok := bcg.history[mssg.MessageID]
+						if !ok {
+							bcg.history[mssg.MessageID] = &messageHistory{patience: bcg.F,
+								already_sent_peers: make(map[guid.Guid]guid.Guid, 0)}
 
-						msg_history = bcg.history[forwdMsg.messageID]
-					}
-
-					if msg_history.patience <= 0 {
-
-						if msg_history.patience == -100 {
-							delete(bcg.history, forwdMsg.messageID)
-						} else {
-							msg_history.patience--
+							msg_history = bcg.history[mssg.MessageID]
 						}
+
+						if msg_history.patience <= 0 {
+
+							if msg_history.patience == -100 {
+								delete(bcg.history, mssg.MessageID)
+							} else {
+								msg_history.patience--
+							}
+							continue
+						}
+
+						do_gossip_forward(bcg, msg_history, &mssg)
+					case bool:
+						if err := do_gossip_push(bcg); err != nil {
+							log.Printf("error pushing new gossip, details: %s\n", err)
+						}
+					default:
+						log.Println("message passed in bad format, skipping")
 						continue
 					}
-
-					do_gossip_forward(bcg, msg_history, &forwdMsg)
-
 				default:
 					continue
 				}

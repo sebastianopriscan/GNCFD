@@ -123,8 +123,18 @@ func (vgs *VivaldiGRPCGossipServer) PushGossip(ctx context.Context, nodes *pb_go
 		return &pb_go.PushReturn{}, errors.New("error: requested core incompatible with sender one, push failed")
 	}
 
+	msgID, err := guid.Deserialize([]byte(nodes.MessageID))
+	if err != nil {
+		return &pb_go.PushReturn{}, errors.New("error deserializing message_id")
+	}
+
+	sender, err := guid.Deserialize([]byte(nodes.Sender))
+	if err != nil {
+		return &pb_go.PushReturn{}, errors.New("error deserializing sender")
+	}
+
 	//Pushing updates to channels
-	vgs.PushToChannels(nodes)
+	vgs.PushToChannels(&gossip.MessageToForward{MessageID: msgID, Sender: sender, Payload: nodes})
 
 	return do_push_gossip(nodes, core, sessGuid, now)
 }
