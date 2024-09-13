@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/sebastianopriscan/GNCFD/core"
 	"github.com/sebastianopriscan/GNCFD/core/guid"
@@ -128,13 +129,16 @@ func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore, coreData core.Me
 	pointsToSend.MessageID = messageID.String()
 	pointsToSend.Sender = gc.me.String()
 
+	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	time, err := ntptime.GetNTPTime()
 	if err != nil {
 		return fmt.Errorf("error in parameters preparation, details: %s", err)
 	}
 	pointsToSend.Timestamp = time.UnixNano()
 
-	_, err = gc.client.PushGossip(context.Background(), pointsToSend)
+	_, err = gc.client.PushGossip(timeout, pointsToSend)
 	if err != nil {
 		return fmt.Errorf("unable to push state updates, details: %s", err)
 	}
@@ -148,7 +152,10 @@ func (gc *VivaldiRPCGossipClient) Pull(nodeCore core.GNCFDCore) error {
 		return errors.New("error: the requested core is incompatible with this gossip client")
 	}
 
-	nodeUpdates, err := gc.client.PullGossip(context.Background(), &pb_go.CoreSession{CoreSession: nodeCore.GetCoreSession().String()})
+	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	nodeUpdates, err := gc.client.PullGossip(timeout, &pb_go.CoreSession{CoreSession: nodeCore.GetCoreSession().String()})
 	if err != nil {
 		return fmt.Errorf("error in pull invocation, details: %s", err)
 	}
@@ -171,13 +178,16 @@ func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore, coreData co
 
 	pointsToSend.MessageID = messageID.String()
 
+	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	time, err := ntptime.GetNTPTime()
 	if err != nil {
 		return fmt.Errorf("error in parameters preparation, details: %s", err)
 	}
 	pointsToSend.Timestamp = time.UnixNano()
 
-	nodeUpdates, err := vgc.client.ExchangeGossip(context.Background(), pointsToSend)
+	nodeUpdates, err := vgc.client.ExchangeGossip(timeout, pointsToSend)
 	if err != nil {
 		return fmt.Errorf("unable to push state updates, details: %s", err)
 	}
@@ -188,4 +198,27 @@ func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore, coreData co
 	}
 
 	return executePull(nodeCore, nodeUpdates, time.UnixNano())
+}
+
+func (vgc *VivaldiRPCGossipClient) Forward(nodeCore core.GNCFDCore, data core.Metadata) error {
+
+	if nodeCore.GetKind() != core_code {
+		return errors.New("error: the requested core is incompatible with this gossip client")
+	}
+
+	nodes, ok := data.(*pb_go.NodeUpdates)
+	if !ok {
+		return errors.New("error: bad message passed")
+	}
+
+	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := vgc.client.PushGossip(timeout, nodes)
+
+	if err != nil {
+		return fmt.Errorf("unable to push state updates, details: %s", err)
+	}
+
+	return nil
 }

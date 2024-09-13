@@ -104,7 +104,7 @@ func do_gossip_forward(bcg *BlindCounterGossiper, msg_history *messageHistory, f
 
 	failedPeers := make([]guid.Guid, 0, bcg.B)
 	for i := 0; i < b_neigh_idx; i++ {
-		err := bcg.peers.peers[b_neighbors[i]].Forward(forwdMsg.Payload)
+		err := bcg.peers.peers[b_neighbors[i]].Forward(bcg.core, forwdMsg.Payload)
 		if err != nil {
 			failedPeers = append(failedPeers, b_neighbors[i])
 		} else {
