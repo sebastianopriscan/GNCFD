@@ -16,12 +16,11 @@ import (
 )
 
 type VivaldiRPCGossipClient struct {
-	me     guid.Guid
 	client pb_go.GossipStatusClient
 	conn   *connectionmanager.GrpcCommunicationChannel
 }
 
-func NewVivaldiRPCGossipClient(me guid.Guid, peer guid.Guid, address string) (*VivaldiRPCGossipClient, error) {
+func NewVivaldiRPCGossipClient(peer guid.Guid, address string) (*VivaldiRPCGossipClient, error) {
 	retVal := &VivaldiRPCGossipClient{}
 
 	conn, err := connectionmanager.NewGrpcCommunicationChannel(peer, address)
@@ -31,7 +30,6 @@ func NewVivaldiRPCGossipClient(me guid.Guid, peer guid.Guid, address string) (*V
 
 	retVal.client = pb_go.NewGossipStatusClient(conn.Conn)
 	retVal.conn = conn
-	retVal.me = me
 
 	return retVal, nil
 }
@@ -59,9 +57,13 @@ func preparePush(nodeCore core.GNCFDCore, updates core.Metadata) (*pb_go.NodeUpd
 	switch updatedPoints := updates.(type) {
 	case vivaldi.VivaldiMetadata[float64]:
 		pointsToSend.Support = pb_go.Support_REAL
+		pointsToSend.Sender = updatedPoints.Communicator.String()
+		pointsToSend.Ej = updatedPoints.Ej
 		pointsToSend.UpdatePayload = asPointsFloat(updatedPoints)
 	case vivaldi.VivaldiMetadata[complex128]:
 		pointsToSend.Support = pb_go.Support_CMPLX
+		pointsToSend.Sender = updatedPoints.Communicator.String()
+		pointsToSend.Ej = updatedPoints.Ej
 		pointsToSend.UpdatePayload = asPointsCmplx(updatedPoints)
 	default:
 		return nil, errors.New("wrong metadata format")
@@ -92,6 +94,7 @@ func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates, time i
 			Data:         meta_data,
 			Rtt:          math.Abs(float64(time - nodeUpdates.Timestamp)),
 			Communicator: sender,
+			Ej:           nodeUpdates.Ej,
 		}
 		err = nodeCore.UpdateState(meta)
 		if err != nil {
@@ -107,6 +110,7 @@ func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates, time i
 			Data:         meta_data,
 			Rtt:          math.Abs(float64(time - nodeUpdates.Timestamp)),
 			Communicator: sender,
+			Ej:           nodeUpdates.Ej,
 		}
 		err = nodeCore.UpdateState(meta)
 		if err != nil {
@@ -127,7 +131,6 @@ func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore, coreData core.Me
 	}
 
 	pointsToSend.MessageID = messageID.String()
-	pointsToSend.Sender = gc.me.String()
 
 	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

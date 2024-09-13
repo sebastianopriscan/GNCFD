@@ -24,6 +24,7 @@ message NodeUpdates {
     string sender = 4 ;
     string messageID = 5 ;
     int64 timestamp = 6 ;
+    double ej = 7;
 }
 
 message CoreSession {

@@ -3,21 +3,23 @@ package nvs
 import (
 	"errors"
 	"fmt"
-	"math"
 )
 
-/*
-type SpacePoint interface{}
+type NVSFunctions[SUPPORT float64 | complex128] struct {
+	Distance    func([]SUPPORT, []SUPPORT) float64
+	Rescaling   func([]SUPPORT, float64) []SUPPORT
+	ExternalMul func([]SUPPORT, float64) []SUPPORT
+	RandomEl    func() SUPPORT
+	Zero        func(int) []SUPPORT
+}
 
-	type Space interface {
-		Distance(*SpacePoint, *SpacePoint)
-	}
-*/
 type NormedVectorSpace[SUPPORT float64 | complex128] struct {
 	dimension   int
 	distance    func([]SUPPORT, []SUPPORT) float64
 	rescaling   func([]SUPPORT, float64) []SUPPORT
 	externalMul func([]SUPPORT, float64) []SUPPORT
+	randomEl    func() SUPPORT
+	zero        func(int) []SUPPORT
 }
 
 func (nvs *NormedVectorSpace[SUPPORT]) Distance(first *Point[SUPPORT], second *Point[SUPPORT]) (float64, error) {
@@ -48,12 +50,28 @@ func (nvs *NormedVectorSpace[SUPPORT]) UnitVector(first *Point[SUPPORT], second 
 		return nil, fmt.Errorf("error in distance evaluation, details: %s", err)
 	}
 
-	toRescale := make([]SUPPORT, nvs.dimension)
-	for i := 0; i < nvs.dimension; i++ {
-		toRescale[i] = first.GetCoordinates()[i] - second.coordinates[i]
-	}
+	var rescaled []SUPPORT
 
-	rescaled := nvs.rescaling(toRescale, norm)
+	if norm == 0. {
+		toRescale := make([]SUPPORT, nvs.dimension)
+		for i := 0; i < nvs.dimension; i++ {
+			toRescale[i] = first.GetCoordinates()[i] - second.coordinates[i]
+		}
+
+		rescaled = nvs.rescaling(toRescale, norm)
+	} else {
+		rescaled = make([]SUPPORT, nvs.dimension)
+	RESCALED:
+		for i := 0; i < nvs.dimension; i++ {
+			rescaled[i] = nvs.randomEl()
+		}
+		zero := nvs.zero(nvs.dimension)
+		norm := nvs.distance(rescaled, zero)
+		if norm == 0 {
+			goto RESCALED
+		}
+		rescaled = nvs.rescaling(rescaled, norm)
+	}
 
 	retPoint, err := NewPoint(nvs, rescaled)
 	if err != nil {
@@ -76,45 +94,19 @@ func (nvs *NormedVectorSpace[SUPPORT]) ExternalMul(pt *Point[SUPPORT], val float
 	return NewPoint(nvs, newCoords)
 }
 
-func NewNormedVectorSpace[SUPPORT float64 | complex128](dim int, distance func([]SUPPORT, []SUPPORT) float64,
-	rescale func([]SUPPORT, float64) []SUPPORT, exmul func([]SUPPORT, float64) []SUPPORT) (*NormedVectorSpace[SUPPORT], error) {
+func NewNormedVectorSpace[SUPPORT float64 | complex128](dim int, ops *NVSFunctions[SUPPORT]) (*NormedVectorSpace[SUPPORT], error) {
 
-	if dim <= 0 || distance == nil {
-		return nil, errors.New("dim should be greater than 0 and distance should be nil")
+	if dim <= 0 || ops.Distance == nil || ops.ExternalMul == nil || ops.RandomEl == nil || ops.Rescaling == nil || ops.Zero == nil {
+		return nil, errors.New("dim should be greater than 0 and no opration should be nil")
 	}
-	return &NormedVectorSpace[SUPPORT]{}, nil
-}
-
-func euclideanNorm(first []float64, second []float64) float64 {
-	sum := 0.
-	for i := 0; i < len(first); i++ {
-		sum += math.Pow(first[i]-second[i], 2.)
-	}
-
-	return math.Sqrt(sum)
-}
-
-func euclideanRescale(vector []float64, norm float64) []float64 {
-	retVal := make([]float64, len(vector))
-	for i, entry := range vector {
-		retVal[i] = entry / norm
-	}
-
-	return retVal
-}
-
-func euclideanExMul(vector []float64, val float64) []float64 {
-
-	retVal := make([]float64, len(vector))
-	for i, entry := range vector {
-		retVal[i] = entry * val
-	}
-
-	return retVal
-}
-
-func NewRealEuclideanSpace(dim int) (*NormedVectorSpace[float64], error) {
-	return NewNormedVectorSpace(dim, euclideanNorm, euclideanRescale, euclideanExMul)
+	return &NormedVectorSpace[SUPPORT]{
+		dimension:   dim,
+		distance:    ops.Distance,
+		rescaling:   ops.Rescaling,
+		externalMul: ops.ExternalMul,
+		randomEl:    ops.RandomEl,
+		zero:        ops.Zero,
+	}, nil
 }
 
 type Point[SUPPORT float64 | complex128] struct {

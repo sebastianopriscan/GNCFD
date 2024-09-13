@@ -27,7 +27,9 @@ type VivaldiCore[SUPPORT float64 | complex128] struct {
 
 	session guid.Guid
 
-	delta float64
+	ce float64
+	cc float64
+	ei float64
 }
 
 /*
@@ -93,7 +95,11 @@ func (cr *VivaldiCore[SUPPORT]) GetKind() string {
 
 func (cr *VivaldiCore[SUPPORT]) GetStateUpdates() (core.Metadata, error) {
 
-	retVal := &VivaldiMetadata[SUPPORT]{Session: cr.session}
+	retVal := &VivaldiMetadata[SUPPORT]{
+		Session:      cr.session,
+		Ej:           cr.ei,
+		Communicator: cr.myGUID,
+	}
 
 	data := make(map[guid.Guid]VivaldiMetaCoor[SUPPORT])
 
@@ -113,6 +119,8 @@ func (cr *VivaldiCore[SUPPORT]) GetStateUpdates() (core.Metadata, error) {
 		}
 	}
 
+	retVal.Data = data
+
 	return retVal, nil
 }
 
@@ -120,7 +128,9 @@ func updatePoint[SUPPORT float64 | complex128](*nvs.Point[SUPPORT], []SUPPORT) {
 	//TODO : Decide if a general coordinate update should be needed and eventually customizable
 }
 
-func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, communicator guid.Guid) {
+func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communicator guid.Guid) {
+
+	w := cr.ei / (cr.ei + ej)
 
 	commData, present := cr.nodesCache[communicator]
 	if !present {
@@ -133,13 +143,18 @@ func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, communicator guid.Gu
 		return
 	}
 
-	e := rtt - dist
+	e := (rtt - dist)
+	es := math.Abs(e) / rtt
+
+	cr.ei = es * cr.ce * w * cr.ei * (1 - cr.ce*w)
+	delta := cr.cc * w
+
 	unit, err := cr.space.UnitVector(cr.myCoordinates, commCoords)
 	if err != nil {
 		return
 	}
 
-	mulPt, err := cr.space.ExternalMul(unit, e*cr.delta)
+	mulPt, err := cr.space.ExternalMul(unit, e*delta)
 	if err != nil {
 		return
 	}
@@ -192,7 +207,7 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 		}
 	}
 
-	cr.vivaldi_update(nodes.Rtt, nodes.Communicator)
+	cr.vivaldi_update(nodes.Rtt, nodes.Ej, nodes.Communicator)
 
 	//Classical Observer notify, the observers will keep a reference to the core to get the updates
 	cr.PushToChannels(true)
@@ -212,7 +227,7 @@ func (cr *VivaldiCore[SUPPORT]) SignalFailed(peers []guid.Guid) {
 }
 
 func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []SUPPORT, space *nvs.NormedVectorSpace[SUPPORT],
-	delta float64) (*VivaldiCore[SUPPORT], error) {
+	ce float64, cc float64) (*VivaldiCore[SUPPORT], error) {
 
 	if space.Dimension() == 0 {
 		return nil, errors.New("space malformed, please use the New* function to properly initialize one")
@@ -227,7 +242,9 @@ func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []S
 		myCoordinates: space_coords,
 		myGUID:        myGuid,
 		space:         space,
-		delta:         delta,
+		ce:            ce,
+		cc:            cc,
+		ei:            0.,
 	}
 
 	return cr, nil
@@ -243,5 +260,6 @@ type VivaldiMetadata[SUPPORT float64 | complex128] struct {
 	Data    map[guid.Guid]VivaldiMetaCoor[SUPPORT]
 
 	Rtt          float64
+	Ej           float64
 	Communicator guid.Guid
 }

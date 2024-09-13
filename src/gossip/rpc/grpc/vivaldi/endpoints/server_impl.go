@@ -39,6 +39,7 @@ func do_push_gossip(nodes *pb_go.NodeUpdates, core core.GNCFDCore, sessGuid guid
 			Data:         updates,
 			Communicator: sender,
 			Rtt:          math.Abs(float64(now-nodes.Timestamp)) / 2.0,
+			Ej:           nodes.Ej,
 		})
 		if err != nil {
 			return &pb_go.PushReturn{}, fmt.Errorf("error in core upadate, push failed, details: %s", err)
@@ -53,6 +54,7 @@ func do_push_gossip(nodes *pb_go.NodeUpdates, core core.GNCFDCore, sessGuid guid
 			Data:         updates,
 			Communicator: sender,
 			Rtt:          math.Abs(float64(now-nodes.Timestamp)) / 2.0,
+			Ej:           nodes.Ej,
 		})
 		if err != nil {
 			return &pb_go.PushReturn{}, fmt.Errorf("error in core upadate, push failed, details: %s", err)
@@ -84,9 +86,13 @@ func do_pull_gossip(core core.GNCFDCore) (*pb_go.NodeUpdates, error) {
 	switch updatedPoints := updates.(type) {
 	case vivaldi.VivaldiMetadata[float64]:
 		pointsToSend.Support = pb_go.Support_REAL
+		pointsToSend.Sender = updatedPoints.Communicator.String()
+		pointsToSend.Ej = updatedPoints.Ej
 		pointsToSend.UpdatePayload = asPointsFloat(updatedPoints)
 	case vivaldi.VivaldiMetadata[complex128]:
 		pointsToSend.Support = pb_go.Support_CMPLX
+		pointsToSend.Sender = updatedPoints.Communicator.String()
+		pointsToSend.Ej = updatedPoints.Ej
 		pointsToSend.UpdatePayload = asPointsCmplx(updatedPoints)
 	default:
 		return nil, errors.New("wrong metadata format")
