@@ -11,19 +11,27 @@ import (
 	"google.golang.org/grpc"
 )
 
+type VivaldiGRPCServerDesc struct {
+	Server  *connectionmanager.ServerInterface
+	Exists  bool
+	VivServ *VivaldiGRPCGossipServer
+}
+
 func ActivateVivaldiGRPCServer(name string, addr string, transport string,
-	opts []grpc.ServerOption, coreMap *gossip.LockedMap[guid.Guid, core.GNCFDCore]) (*connectionmanager.ServerInterface, bool, error) {
+	opts []grpc.ServerOption, coreMap *gossip.LockedMap[guid.Guid, core.GNCFDCore]) (*VivaldiGRPCServerDesc, error) {
 
 	serv, exist, err := connectionmanager.GetServer(name, addr, transport, opts)
 	if err != nil {
-		return nil, false, fmt.Errorf("error retrieving server, details: %s", err)
+		return nil, fmt.Errorf("error retrieving server, details: %s", err)
 	}
 
-	pb_go.RegisterGossipStatusServer(serv.Server, &VivaldiGRPCGossipServer{coreMap: coreMap})
+	vivserv := &VivaldiGRPCGossipServer{coreMap: coreMap}
 
-	return serv, exist, nil
+	pb_go.RegisterGossipStatusServer(serv.Server, vivserv)
+
+	return &VivaldiGRPCServerDesc{Server: serv, Exists: exist, VivServ: vivserv}, nil
 }
 
-func DeactivateVivaldiGRPCServer(servImpl *connectionmanager.ServerInterface) error {
-	return connectionmanager.ReleaseServerUsage(servImpl)
+func DeactivateVivaldiGRPCServer(servDesc *VivaldiGRPCServerDesc) error {
+	return connectionmanager.ReleaseServerUsage(servDesc.Server)
 }
