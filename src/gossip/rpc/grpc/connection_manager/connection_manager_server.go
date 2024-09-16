@@ -46,10 +46,10 @@ func GetServer(name string, addr string, transport string, opts []grpc.ServerOpt
 			return nil, false, fmt.Errorf("error: unable to create interface, details: %s", err)
 		}
 
-		grpcServer := grpc.NewServer(opts...)
-		go grpcServer.Serve(lis)
+		server = grpc.NewServer(opts...)
+		go server.Serve(lis)
 
-		availableInterfaces[name] = servCount{addr: addr, server: grpcServer, count: 1}
+		availableInterfaces[name] = servCount{addr: addr, server: server, count: 1}
 	}
 
 	server_mu.Unlock()
