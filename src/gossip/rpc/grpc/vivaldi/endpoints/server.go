@@ -25,7 +25,10 @@ func ActivateVivaldiGRPCServer(name string, addr string, transport string,
 		return nil, fmt.Errorf("error retrieving server, details: %s", err)
 	}
 
-	vivserv := &VivaldiGRPCGossipServer{coreMap: coreMap}
+	vivserv := &VivaldiGRPCGossipServer{
+		coreMap:                    coreMap,
+		ChannelObserverSubjectImpl: gossip.NewChannelObserverSubjectImpl(),
+	}
 
 	pb_go.RegisterGossipStatusServer(serv.Server, vivserv)
 
