@@ -2,11 +2,9 @@ package gossip
 
 import (
 	"sync"
-
-	"github.com/sebastianopriscan/GNCFD/core/guid"
 )
 
-type LockedCommunicaitonMap struct {
-	Mu    sync.Mutex
-	Peers map[guid.Guid]CommunicationChannel
+type LockedMap[K comparable, V any] struct {
+	Mu  sync.RWMutex
+	Map map[K]V
 }

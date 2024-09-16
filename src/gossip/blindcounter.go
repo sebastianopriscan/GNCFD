@@ -22,7 +22,7 @@ type messageHistory struct {
 type BlindCounterGossiper struct {
 	ChannelObserverObserver
 
-	peers *LockedCommunicaitonMap
+	peers *LockedMap[guid.Guid, CommunicationChannel]
 	core  core.GNCFDCore
 
 	B int
@@ -35,7 +35,7 @@ type BlindCounterGossiper struct {
 	stopchann chan bool
 }
 
-func NewBlindCounterGossiper(peerMap *LockedCommunicaitonMap, core core.GNCFDCore, B int, F int) *BlindCounterGossiper {
+func NewBlindCounterGossiper(peerMap *LockedMap[guid.Guid, CommunicationChannel], core core.GNCFDCore, B int, F int) *BlindCounterGossiper {
 	retVal := &BlindCounterGossiper{peers: peerMap,
 		core: core, B: B, F: F,
 
@@ -91,8 +91,8 @@ func do_gossip_forward(bcg *BlindCounterGossiper, msg_history *messageHistory, f
 	b_neighbors := make([]guid.Guid, bcg.B)
 	b_neigh_idx := 0
 
-	bcg.peers.Mu.Lock()
-	for neigh := range bcg.peers.Peers {
+	bcg.peers.Mu.RLock()
+	for neigh := range bcg.peers.Map {
 		if _, present := msg_history.already_sent_peers[neigh]; !present {
 			b_neighbors[b_neigh_idx] = neigh
 			b_neigh_idx++
@@ -104,14 +104,14 @@ func do_gossip_forward(bcg *BlindCounterGossiper, msg_history *messageHistory, f
 
 	failedPeers := make([]guid.Guid, 0, bcg.B)
 	for i := 0; i < b_neigh_idx; i++ {
-		err := bcg.peers.Peers[b_neighbors[i]].Forward(bcg.core, forwdMsg.Payload)
+		err := bcg.peers.Map[b_neighbors[i]].Forward(bcg.core, forwdMsg.Payload)
 		if err != nil {
 			failedPeers = append(failedPeers, b_neighbors[i])
 		} else {
 			msg_history.already_sent_peers[b_neighbors[i]] = b_neighbors[i]
 		}
 	}
-	bcg.peers.Mu.Unlock()
+	bcg.peers.Mu.RUnlock()
 
 	bcg.core.SignalFailed(failedPeers)
 
@@ -131,8 +131,8 @@ func do_gossip_push(bcg *BlindCounterGossiper) error {
 	b_neighbors := make([]guid.Guid, bcg.B)
 	b_neigh_idx := 0
 
-	bcg.peers.Mu.Lock()
-	for neigh := range bcg.peers.Peers {
+	bcg.peers.Mu.RLock()
+	for neigh := range bcg.peers.Map {
 		if _, present := msg_history.already_sent_peers[neigh]; !present {
 			b_neighbors[b_neigh_idx] = neigh
 			b_neigh_idx++
@@ -149,14 +149,14 @@ func do_gossip_push(bcg *BlindCounterGossiper) error {
 
 	failedPeers := make([]guid.Guid, 0, bcg.B)
 	for i := 0; i < b_neigh_idx; i++ {
-		err := bcg.peers.Peers[b_neighbors[i]].Push(bcg.core, updates, messageID)
+		err := bcg.peers.Map[b_neighbors[i]].Push(bcg.core, updates, messageID)
 		if err != nil {
 			failedPeers = append(failedPeers, b_neighbors[i])
 		} else {
 			msg_history.already_sent_peers[b_neighbors[i]] = b_neighbors[i]
 		}
 	}
-	bcg.peers.Mu.Unlock()
+	bcg.peers.Mu.RUnlock()
 
 	bcg.core.SignalFailed(failedPeers)
 

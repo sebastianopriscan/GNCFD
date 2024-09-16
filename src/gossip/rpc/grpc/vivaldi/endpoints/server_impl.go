@@ -17,7 +17,7 @@ import (
 type VivaldiGRPCGossipServer struct {
 	gossip.ChannelObserverSubjectImpl
 	pb_go.UnimplementedGossipStatusServer
-	coreMap map[guid.Guid]core.GNCFDCore
+	coreMap *gossip.LockedMap[guid.Guid, core.GNCFDCore]
 }
 
 func do_push_gossip(nodes *pb_go.NodeUpdates, core core.GNCFDCore, sessGuid guid.Guid, now int64) (*pb_go.PushReturn, error) {
@@ -120,7 +120,10 @@ func (vgs *VivaldiGRPCGossipServer) PushGossip(ctx context.Context, nodes *pb_go
 		return &pb_go.PushReturn{}, errors.New("error converting guid, push failed")
 	}
 
-	core, ok := vgs.coreMap[sessGuid]
+	vgs.coreMap.Mu.RLock()
+	defer vgs.coreMap.Mu.RUnlock()
+
+	core, ok := vgs.coreMap.Map[sessGuid]
 	if !ok {
 		return &pb_go.PushReturn{}, errors.New("error: no core with such session, push failed")
 	}
@@ -152,7 +155,10 @@ func (vgs *VivaldiGRPCGossipServer) PullGossip(ctx context.Context, session *pb_
 		return nil, errors.New("error converting guid, pull failed")
 	}
 
-	core, ok := vgs.coreMap[guid]
+	vgs.coreMap.Mu.RLock()
+	defer vgs.coreMap.Mu.RUnlock()
+
+	core, ok := vgs.coreMap.Map[guid]
 	if !ok {
 		return nil, errors.New("error: no core with such session, pull failed")
 	}
@@ -177,7 +183,10 @@ func (vgs *VivaldiGRPCGossipServer) ExchangeGossip(ctx context.Context, nodes *p
 		return nil, errors.New("error converting guid, pull failed")
 	}
 
-	core, ok := vgs.coreMap[guid]
+	vgs.coreMap.Mu.RLock()
+	defer vgs.coreMap.Mu.RUnlock()
+
+	core, ok := vgs.coreMap.Map[guid]
 	if !ok {
 		return nil, errors.New("error: no core with such session, pull failed")
 	}
