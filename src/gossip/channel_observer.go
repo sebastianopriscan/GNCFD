@@ -17,6 +17,14 @@ type ChannelObserverSubjectImpl struct {
 	freeentries int
 }
 
+func NewChannelObserverSubjectImpl() ChannelObserverSubjectImpl {
+	return ChannelObserverSubjectImpl{
+		channels_mu: sync.Mutex{},
+		channels:    make(map[int]chan any),
+		freeentries: 0,
+	}
+}
+
 func (chimpl *ChannelObserverSubjectImpl) PushToChannels(nodes any) {
 
 	go func() {

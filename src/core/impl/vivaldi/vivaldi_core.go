@@ -245,6 +245,8 @@ func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []S
 		ce:            ce,
 		cc:            cc,
 		ei:            0.,
+
+		ChannelObserverSubjectImpl: gossip.NewChannelObserverSubjectImpl(),
 	}
 
 	return cr, nil

@@ -7,6 +7,6 @@ import (
 )
 
 type LockedCommunicaitonMap struct {
-	mu    sync.Mutex
-	peers map[guid.Guid]CommunicationChannel
+	Mu    sync.Mutex
+	Peers map[guid.Guid]CommunicationChannel
 }
