@@ -218,7 +218,7 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 
 func (cr *VivaldiCore[SUPPORT]) SignalFailed(peers []guid.Guid) {
 	cr.core_mu.Lock()
-	defer cr.core_mu.RUnlock()
+	defer cr.core_mu.Unlock()
 
 	for _, peer := range peers {
 		data, present := cr.nodesCache[peer]
