@@ -2,7 +2,7 @@ package gossip
 
 import (
 	"github.com/sebastianopriscan/GNCFD/core"
-	"github.com/sebastianopriscan/GNCFD/core/guid"
+	"github.com/sebastianopriscan/GNCFD/utils/guid"
 )
 
 type CommunicationChannel interface {

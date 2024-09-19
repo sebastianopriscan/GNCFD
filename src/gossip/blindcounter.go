@@ -5,7 +5,9 @@ import (
 	"log"
 
 	"github.com/sebastianopriscan/GNCFD/core"
-	"github.com/sebastianopriscan/GNCFD/core/guid"
+	channelobserver "github.com/sebastianopriscan/GNCFD/utils/channel_observer"
+	"github.com/sebastianopriscan/GNCFD/utils/guid"
+	lockedmap "github.com/sebastianopriscan/GNCFD/utils/locked_map"
 )
 
 type MessageToForward struct {
@@ -20,9 +22,9 @@ type messageHistory struct {
 }
 
 type BlindCounterGossiper struct {
-	ChannelObserverObserver
+	channelobserver.ChannelObserverObserver
 
-	peers *LockedMap[guid.Guid, CommunicationChannel]
+	peers *lockedmap.LockedMap[guid.Guid, CommunicationChannel]
 	core  core.GNCFDCore
 
 	B int
@@ -35,16 +37,20 @@ type BlindCounterGossiper struct {
 	stopchann chan bool
 }
 
-func NewBlindCounterGossiper(peerMap *LockedMap[guid.Guid, CommunicationChannel], core core.GNCFDCore, B int, F int) *BlindCounterGossiper {
+func NewBlindCounterGossiper(peerMap *lockedmap.LockedMap[guid.Guid, CommunicationChannel], core core.GNCFDCore, B int, F int) *BlindCounterGossiper {
 	retVal := &BlindCounterGossiper{peers: peerMap,
 		core: core, B: B, F: F,
 
-		inputchann:              make(chan bool, 10),
-		history:                 make(map[guid.Guid]*messageHistory),
-		ChannelObserverObserver: ChannelObserverObserver{make(map[ChannelObserverSubject]chancode)},
+		inputchann: make(chan bool, 10),
+		history:    make(map[guid.Guid]*messageHistory),
+		ChannelObserverObserver: channelobserver.ChannelObserverObserver{
+			Registrations: lockedmap.LockedMap[channelobserver.ChannelObserverSubject, channelobserver.Chancode]{
+				Map: make(map[channelobserver.ChannelObserverSubject]channelobserver.Chancode),
+			},
+		},
 	}
 
-	asSubject, ok := core.(ChannelObserverSubject)
+	asSubject, ok := core.(channelobserver.ChannelObserverSubject)
 	if !ok {
 		log.Println("core was not a subject: only direct communication with gossiper supported")
 	} else {
@@ -182,9 +188,10 @@ func (bcg *BlindCounterGossiper) gossip_routine() {
 			do_gossip_push(bcg)
 
 		default:
-			for _, v := range bcg.Registrations {
+			bcg.Registrations.Mu.RLock()
+			for _, v := range bcg.Registrations.Map {
 				select {
-				case data := <-v.chann:
+				case data := <-v.Chann:
 
 					switch mssg := data.(type) {
 					case *MessageToForward:
@@ -219,6 +226,7 @@ func (bcg *BlindCounterGossiper) gossip_routine() {
 					continue
 				}
 			}
+			bcg.Registrations.Mu.RUnlock()
 		}
 	}
 }

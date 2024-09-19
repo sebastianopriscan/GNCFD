@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/sebastianopriscan/GNCFD/core"
-	"github.com/sebastianopriscan/GNCFD/core/guid"
-	"github.com/sebastianopriscan/GNCFD/gossip"
 	connectionmanager "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/connection_manager"
 	"github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go"
+	channelobserver "github.com/sebastianopriscan/GNCFD/utils/channel_observer"
+	"github.com/sebastianopriscan/GNCFD/utils/guid"
+	lockedmap "github.com/sebastianopriscan/GNCFD/utils/locked_map"
 	"google.golang.org/grpc"
 )
 
@@ -18,7 +19,7 @@ type VivaldiGRPCServerDesc struct {
 }
 
 func ActivateVivaldiGRPCServer(name string, addr string, transport string,
-	opts []grpc.ServerOption, coreMap *gossip.LockedMap[guid.Guid, core.GNCFDCore]) (*VivaldiGRPCServerDesc, error) {
+	opts []grpc.ServerOption, coreMap *lockedmap.LockedMap[guid.Guid, core.GNCFDCore]) (*VivaldiGRPCServerDesc, error) {
 
 	serv, exist, err := connectionmanager.GetServer(name, addr, transport, opts)
 	if err != nil {
@@ -27,7 +28,7 @@ func ActivateVivaldiGRPCServer(name string, addr string, transport string,
 
 	vivserv := &VivaldiGRPCGossipServer{
 		coreMap:                    coreMap,
-		ChannelObserverSubjectImpl: gossip.NewChannelObserverSubjectImpl(),
+		ChannelObserverSubjectImpl: channelobserver.NewChannelObserverSubjectImpl(),
 	}
 
 	pb_go.RegisterGossipStatusServer(serv.Server, vivserv)

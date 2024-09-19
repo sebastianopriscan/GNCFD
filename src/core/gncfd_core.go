@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/sebastianopriscan/GNCFD/core/guid"
+	"github.com/sebastianopriscan/GNCFD/utils/guid"
 )
 
 type Metadata interface {

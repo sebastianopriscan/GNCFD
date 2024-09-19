@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sebastianopriscan/GNCFD/core/guid"
+	"github.com/sebastianopriscan/GNCFD/utils/guid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

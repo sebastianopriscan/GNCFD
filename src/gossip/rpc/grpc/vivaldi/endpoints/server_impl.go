@@ -7,17 +7,19 @@ import (
 	"math"
 
 	"github.com/sebastianopriscan/GNCFD/core"
-	"github.com/sebastianopriscan/GNCFD/core/guid"
 	"github.com/sebastianopriscan/GNCFD/core/impl/vivaldi"
 	"github.com/sebastianopriscan/GNCFD/gossip"
 	"github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go"
+	channelobserver "github.com/sebastianopriscan/GNCFD/utils/channel_observer"
+	"github.com/sebastianopriscan/GNCFD/utils/guid"
+	lockedmap "github.com/sebastianopriscan/GNCFD/utils/locked_map"
 	"github.com/sebastianopriscan/GNCFD/utils/ntptime"
 )
 
 type VivaldiGRPCGossipServer struct {
-	gossip.ChannelObserverSubjectImpl
+	channelobserver.ChannelObserverSubjectImpl
 	pb_go.UnimplementedGossipStatusServer
-	coreMap *gossip.LockedMap[guid.Guid, core.GNCFDCore]
+	coreMap *lockedmap.LockedMap[guid.Guid, core.GNCFDCore]
 }
 
 func do_push_gossip(nodes *pb_go.NodeUpdates, core core.GNCFDCore, sessGuid guid.Guid, now int64) (*pb_go.PushReturn, error) {

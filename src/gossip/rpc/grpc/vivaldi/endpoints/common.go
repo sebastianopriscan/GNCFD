@@ -3,9 +3,9 @@ package endpoints
 import (
 	"errors"
 
-	"github.com/sebastianopriscan/GNCFD/core/guid"
 	"github.com/sebastianopriscan/GNCFD/core/impl/vivaldi"
 	"github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go"
+	"github.com/sebastianopriscan/GNCFD/utils/guid"
 )
 
 const core_code string = "Vivaldi"

@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/sebastianopriscan/GNCFD/core"
-	"github.com/sebastianopriscan/GNCFD/core/guid"
 	"github.com/sebastianopriscan/GNCFD/core/nvs"
-	"github.com/sebastianopriscan/GNCFD/gossip"
+	channelobserver "github.com/sebastianopriscan/GNCFD/utils/channel_observer"
+	"github.com/sebastianopriscan/GNCFD/utils/guid"
 )
 
 type nodeData[SUPPORT float64 | complex128] struct {
@@ -18,7 +19,10 @@ type nodeData[SUPPORT float64 | complex128] struct {
 }
 
 type VivaldiCore[SUPPORT float64 | complex128] struct {
-	gossip.ChannelObserverSubjectImpl
+	channelobserver.ChannelObserverSubjectImpl
+
+	sess_mu sync.RWMutex
+	core_mu sync.RWMutex
 
 	nodesCache    map[guid.Guid]*nodeData[SUPPORT]
 	myGUID        guid.Guid
@@ -32,29 +36,12 @@ type VivaldiCore[SUPPORT float64 | complex128] struct {
 	ei float64
 }
 
-/*
-	func (cr *VivaldiCore[T]) GetMyCoordinates() T {
-		return cr.myCoordinates
-	}
-
-	func (cr *VivaldiCore[T]) GetCoordinatesOf(guid int64) T {
-		return cr.nodesCache[guid].Coords
-	}
-
-	func (cr *VivaldiCore[T]) GetAllCoordinates() map[int64]T {
-		retMap := make(map[int64]T)
-
-		for k, v := range cr.nodesCache {
-
-			retMap[k] = v.Coords
-		}
-
-		return retMap
-	}
-*/
 func (cr *VivaldiCore[SUPPORT]) GetClosestOf(guids []guid.Guid) ([]guid.Guid, error) {
 	min_distance := math.MaxFloat64
 	var retSlice []guid.Guid
+
+	cr.core_mu.RLock()
+	defer cr.core_mu.RUnlock()
 
 	for _, single_guid := range guids {
 		point, ok := cr.nodesCache[single_guid]
@@ -78,14 +65,20 @@ func (cr *VivaldiCore[SUPPORT]) GetClosestOf(guids []guid.Guid) ([]guid.Guid, er
 }
 
 func (cr *VivaldiCore[SUPPORT]) GetIsFailed(guid guid.Guid) bool {
+	cr.core_mu.RLock()
+	defer cr.core_mu.RUnlock()
 	return cr.nodesCache[guid].IsFailed
 }
 
 func (cr *VivaldiCore[SUPPORT]) GetCoreSession() guid.Guid {
+	cr.sess_mu.RLock()
+	defer cr.sess_mu.RUnlock()
 	return cr.session
 }
 
 func (cr *VivaldiCore[SUPPORT]) SetCoreSession(guid guid.Guid) {
+	cr.sess_mu.Lock()
+	defer cr.sess_mu.Unlock()
 	cr.session = guid
 }
 
@@ -94,6 +87,8 @@ func (cr *VivaldiCore[SUPPORT]) GetKind() string {
 }
 
 func (cr *VivaldiCore[SUPPORT]) GetStateUpdates() (core.Metadata, error) {
+	cr.core_mu.RLock()
+	defer cr.core_mu.RUnlock()
 
 	retVal := &VivaldiMetadata[SUPPORT]{
 		Session:      cr.session,
@@ -177,9 +172,15 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 		return errors.New("error: bad metadata passed")
 	}
 
+	cr.sess_mu.RLock()
 	if nodes.Session != cr.session {
+		cr.sess_mu.RUnlock()
 		return errors.New("error : incompatible core session")
 	}
+	cr.sess_mu.RUnlock()
+
+	cr.core_mu.Lock()
+	defer cr.core_mu.Unlock()
 
 	var err error = nil
 	for guid, data := range nodes.Data {
@@ -216,6 +217,9 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 }
 
 func (cr *VivaldiCore[SUPPORT]) SignalFailed(peers []guid.Guid) {
+	cr.core_mu.Lock()
+	defer cr.core_mu.RUnlock()
+
 	for _, peer := range peers {
 		data, present := cr.nodesCache[peer]
 		if !present {
@@ -246,7 +250,7 @@ func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []S
 		cc:            cc,
 		ei:            10.,
 
-		ChannelObserverSubjectImpl: gossip.NewChannelObserverSubjectImpl(),
+		ChannelObserverSubjectImpl: channelobserver.NewChannelObserverSubjectImpl(),
 	}
 
 	return cr, nil
