@@ -55,12 +55,12 @@ func preparePush(nodeCore core.GNCFDCore, updates core.Metadata) (*pb_go.NodeUpd
 	pointsToSend.CoreSession = nodeCore.GetCoreSession().String()
 
 	switch updatedPoints := updates.(type) {
-	case vivaldi.VivaldiMetadata[float64]:
+	case *vivaldi.VivaldiMetadata[float64]:
 		pointsToSend.Support = pb_go.Support_REAL
 		pointsToSend.Sender = updatedPoints.Communicator.String()
 		pointsToSend.Ej = updatedPoints.Ej
 		pointsToSend.UpdatePayload = asPointsFloat(updatedPoints)
-	case vivaldi.VivaldiMetadata[complex128]:
+	case *vivaldi.VivaldiMetadata[complex128]:
 		pointsToSend.Support = pb_go.Support_CMPLX
 		pointsToSend.Sender = updatedPoints.Communicator.String()
 		pointsToSend.Ej = updatedPoints.Ej

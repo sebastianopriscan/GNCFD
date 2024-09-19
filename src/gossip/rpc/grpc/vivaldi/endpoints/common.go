@@ -10,7 +10,7 @@ import (
 
 const core_code string = "Vivaldi"
 
-func asPointsFloat(updates vivaldi.VivaldiMetadata[float64]) []*pb_go.NodeState {
+func asPointsFloat(updates *vivaldi.VivaldiMetadata[float64]) []*pb_go.NodeState {
 	retVal := make([]*pb_go.NodeState, 0)
 
 	for k, v := range updates.Data {
@@ -23,7 +23,7 @@ func asPointsFloat(updates vivaldi.VivaldiMetadata[float64]) []*pb_go.NodeState 
 	return retVal
 }
 
-func asPointsCmplx(updates vivaldi.VivaldiMetadata[complex128]) []*pb_go.NodeState {
+func asPointsCmplx(updates *vivaldi.VivaldiMetadata[complex128]) []*pb_go.NodeState {
 	retVal := make([]*pb_go.NodeState, 0)
 
 	for k, v := range updates.Data {
