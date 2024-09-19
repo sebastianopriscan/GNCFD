@@ -187,7 +187,7 @@ func (bcg *BlindCounterGossiper) gossip_routine() {
 				case data := <-v.chann:
 
 					switch mssg := data.(type) {
-					case MessageToForward:
+					case *MessageToForward:
 						msg_history, ok := bcg.history[mssg.MessageID]
 						if !ok {
 							bcg.history[mssg.MessageID] = &messageHistory{patience: bcg.F,
@@ -206,7 +206,7 @@ func (bcg *BlindCounterGossiper) gossip_routine() {
 							continue
 						}
 
-						do_gossip_forward(bcg, msg_history, &mssg)
+						do_gossip_forward(bcg, msg_history, mssg)
 					case bool:
 						if err := do_gossip_push(bcg); err != nil {
 							log.Printf("error pushing new gossip, details: %s\n", err)

@@ -172,7 +172,7 @@ func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communic
 }
 
 func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
-	nodes, ok := metadata.(VivaldiMetadata[SUPPORT])
+	nodes, ok := metadata.(*VivaldiMetadata[SUPPORT])
 	if !ok {
 		return errors.New("error: bad metadata passed")
 	}
@@ -244,7 +244,7 @@ func NewVivaldiCore[SUPPORT float64 | complex128](myGuid guid.Guid, myCoords []S
 		space:         space,
 		ce:            ce,
 		cc:            cc,
-		ei:            0.,
+		ei:            10.,
 
 		ChannelObserverSubjectImpl: gossip.NewChannelObserverSubjectImpl(),
 	}

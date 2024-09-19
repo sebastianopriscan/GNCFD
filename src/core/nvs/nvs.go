@@ -52,7 +52,7 @@ func (nvs *NormedVectorSpace[SUPPORT]) UnitVector(first *Point[SUPPORT], second 
 
 	var rescaled []SUPPORT
 
-	if norm == 0. {
+	if norm != 0. {
 		toRescale := make([]SUPPORT, nvs.dimension)
 		for i := 0; i < nvs.dimension; i++ {
 			toRescale[i] = first.GetCoordinates()[i] - second.coordinates[i]
