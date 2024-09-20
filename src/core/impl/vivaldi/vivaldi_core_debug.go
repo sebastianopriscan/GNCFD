@@ -131,7 +131,12 @@ func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communic
 
 	mssg := "Vivaldi Core: running vivaldi_update:\n"
 
-	w := cr.ei / (cr.ei + ej)
+	var w float64
+	if cr.ei+ej != 0 {
+		w = cr.ei / (cr.ei + ej)
+	} else {
+		w = 10e-5 //Justified by the fact that if errors converge to 0, the algorithm loses its adaptability
+	}
 
 	mssg += fmt.Sprintf("\tcr.ei = %v\n\tej = %v\n\tw = %v\n", cr.ei, ej, w)
 
