@@ -1,11 +1,12 @@
-//go:build release
-// +build release
+//go:build debug
+// +build debug
 
 package vivaldi
 
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"sync"
 
@@ -128,45 +129,86 @@ func updatePoint[SUPPORT float64 | complex128](*nvs.Point[SUPPORT], []SUPPORT) {
 
 func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communicator guid.Guid) {
 
+	mssg := "Vivaldi Core: running vivaldi_update:\n"
+
 	w := cr.ei / (cr.ei + ej)
+
+	mssg += fmt.Sprintf("\tcr.ei = %v\n\tej = %v\n\tw = %v\n", cr.ei, ej, w)
 
 	commData, present := cr.nodesCache[communicator]
 	if !present {
+		mssg += fmt.Sprintf("\tCommunicator not present in table, returning")
+		log.Print(mssg)
 		return
 	}
 	commCoords := commData.Coords
 
+	mssg += "\tMy Coordinates:\n"
+	for _, coor := range cr.myCoordinates.GetCoordinates() {
+		mssg += fmt.Sprintf("\t\t%v\n", coor)
+	}
+
+	mssg += fmt.Sprintf("\tCommunicator GUID: %v\n\tCommunicator coordinates:\n", communicator)
+	for _, coord := range commCoords.GetCoordinates() {
+		mssg += fmt.Sprintf("\t\t%v\n", coord)
+	}
+
 	dist, err := cr.space.Distance(cr.myCoordinates, commCoords)
 	if err != nil {
+		mssg += "\tError generating coordinates, details: " + err.Error() + "\n"
+		log.Print(mssg)
 		return
 	}
+
+	mssg += fmt.Sprintf("\tDistance: %v\n", dist)
 
 	e := (rtt - dist)
 	es := math.Abs(e) / rtt
 
+	mssg += fmt.Sprintf("\te = %v\n\tes = %v\n", e, es)
+
 	cr.ei = es * cr.ce * w * cr.ei * (1 - cr.ce*w)
 	delta := cr.cc * w
 
+	mssg += fmt.Sprintf("\t*cr.ei = %v\n\tdelta = %v\n", cr.ei, delta)
+
 	unit, err := cr.space.UnitVector(cr.myCoordinates, commCoords)
 	if err != nil {
+		mssg += fmt.Sprintf("\tError generating Unit vector, details: " + err.Error() + "\n")
+		log.Print(mssg)
 		return
+	}
+
+	mssg += fmt.Sprintf("\tUnit vector coordinates:\n")
+	for _, coor := range unit.GetCoordinates() {
+		mssg += fmt.Sprintf("\t\t%v\n", coor)
 	}
 
 	mulPt, err := cr.space.ExternalMul(unit, e*delta)
 	if err != nil {
+		mssg += "\tError doing external mul, details: " + err.Error() + "\n"
+		log.Print(mssg)
 		return
+	}
+
+	mssg += fmt.Sprintf("\tExMul vector coordinates:\n")
+	for _, coor := range mulPt.GetCoordinates() {
+		mssg += fmt.Sprintf("\t\t%v\n", coor)
 	}
 
 	newCoordinates := make([]SUPPORT, cr.space.Dimension())
 	myCoords := cr.myCoordinates.GetCoordinates()
 	mulPt_coors := mulPt.GetCoordinates()
 
+	mssg += "\tSelf new coordinates:\n"
 	for i := 0; i < cr.space.Dimension(); i++ {
-
 		newCoordinates[i] = myCoords[i] + mulPt_coors[i]
+		mssg += fmt.Sprintf("\t\t%v\n", newCoordinates[i])
 	}
 
 	cr.myCoordinates.SetCoordinates(newCoordinates)
+
+	log.Print(mssg)
 }
 
 func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
