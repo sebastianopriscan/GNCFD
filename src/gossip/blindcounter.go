@@ -3,6 +3,7 @@ package gossip
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/sebastianopriscan/GNCFD/core"
 	channelobserver "github.com/sebastianopriscan/GNCFD/utils/channel_observer"
@@ -32,7 +33,7 @@ type BlindCounterGossiper struct {
 
 	inputchann chan bool
 
-	history map[guid.Guid]*messageHistory
+	history lockedmap.LockedMap[guid.Guid, *messageHistory]
 
 	stopchann chan bool
 }
@@ -42,7 +43,7 @@ func NewBlindCounterGossiper(peerMap *lockedmap.LockedMap[guid.Guid, Communicati
 		core: core, B: B, F: F,
 
 		inputchann: make(chan bool, 10),
-		history:    make(map[guid.Guid]*messageHistory),
+		history:    lockedmap.LockedMap[guid.Guid, *messageHistory]{Map: make(map[guid.Guid]*messageHistory)},
 		ChannelObserverObserver: channelobserver.ChannelObserverObserver{
 			Registrations: lockedmap.LockedMap[channelobserver.ChannelObserverSubject, channelobserver.Chancode]{
 				Map: make(map[channelobserver.ChannelObserverSubject]channelobserver.Chancode),
@@ -131,8 +132,11 @@ func do_gossip_push(bcg *BlindCounterGossiper) error {
 		return fmt.Errorf("error generating message guid, details: %s", err)
 	}
 
-	bcg.history[messageID] = &messageHistory{patience: bcg.F, already_sent_peers: make(map[guid.Guid]guid.Guid)}
-	msg_history := bcg.history[messageID]
+	bcg.history.Mu.Lock()
+	defer bcg.history.Mu.Unlock()
+
+	bcg.history.Map[messageID] = &messageHistory{patience: bcg.F, already_sent_peers: make(map[guid.Guid]guid.Guid)}
+	msg_history := bcg.history.Map[messageID]
 
 	b_neighbors := make([]guid.Guid, bcg.B)
 	b_neigh_idx := 0
@@ -173,9 +177,16 @@ func do_gossip_push(bcg *BlindCounterGossiper) error {
 
 func (bcg *BlindCounterGossiper) gossip_routine() {
 
+	cleaner_stopchann := make(chan bool)
+	go bcg.message_history_cleaner(&cleaner_stopchann)
+
 	for {
 		select {
 		case <-bcg.stopchann:
+
+			cleaner_stopchann <- true
+			close(cleaner_stopchann)
+
 			for {
 				_, ok := <-bcg.stopchann
 				if !ok {
@@ -195,25 +206,24 @@ func (bcg *BlindCounterGossiper) gossip_routine() {
 
 					switch mssg := data.(type) {
 					case *MessageToForward:
-						msg_history, ok := bcg.history[mssg.MessageID]
+
+						bcg.history.Mu.Lock()
+
+						msg_history, ok := bcg.history.Map[mssg.MessageID]
 						if !ok {
-							bcg.history[mssg.MessageID] = &messageHistory{patience: bcg.F,
+							bcg.history.Map[mssg.MessageID] = &messageHistory{patience: bcg.F,
 								already_sent_peers: make(map[guid.Guid]guid.Guid, 0)}
 
-							msg_history = bcg.history[mssg.MessageID]
+							msg_history = bcg.history.Map[mssg.MessageID]
 						}
 
-						if msg_history.patience <= 0 {
-
-							if msg_history.patience == -100 {
-								delete(bcg.history, mssg.MessageID)
-							} else {
-								msg_history.patience--
-							}
+						if msg_history.patience == 0 {
 							continue
 						}
 
 						do_gossip_forward(bcg, msg_history, mssg)
+
+						bcg.history.Mu.Unlock()
 					case bool:
 						if err := do_gossip_push(bcg); err != nil {
 							log.Printf("error pushing new gossip, details: %s\n", err)
@@ -227,6 +237,27 @@ func (bcg *BlindCounterGossiper) gossip_routine() {
 				}
 			}
 			bcg.Registrations.Mu.RUnlock()
+		}
+	}
+}
+
+func (bcg *BlindCounterGossiper) message_history_cleaner(stopchann *chan bool) {
+
+	for {
+		select {
+		case <-*stopchann:
+			return
+		default:
+			time.Sleep(10 * time.Second)
+			bcg.history.Mu.Lock()
+
+			for k, v := range bcg.history.Map {
+				if v.patience == 0 {
+					delete(bcg.history.Map, k)
+				}
+			}
+
+			bcg.history.Mu.Unlock()
 		}
 	}
 }

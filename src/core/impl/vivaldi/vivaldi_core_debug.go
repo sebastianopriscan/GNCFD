@@ -170,7 +170,7 @@ func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communic
 	e := (rtt - dist)
 	es := math.Abs(e) / rtt
 
-	mssg += fmt.Sprintf("\te = %v\n\tes = %v\n", e, es)
+	mssg += fmt.Sprintf("\te = %v\n\tes = %v\n\trtt = %v", e, es, rtt)
 
 	cr.ei = es * cr.ce * w * cr.ei * (1 - cr.ce*w)
 	delta := cr.cc * w
@@ -261,7 +261,7 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 	cr.vivaldi_update(nodes.Rtt, nodes.Ej, nodes.Communicator)
 
 	//Classical Observer notify, the observers will keep a reference to the core to get the updates
-	cr.PushToChannels(true)
+	//cr.PushToChannels(true)
 
 	return err
 }

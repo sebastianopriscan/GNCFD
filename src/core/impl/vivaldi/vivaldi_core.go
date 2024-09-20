@@ -128,7 +128,12 @@ func updatePoint[SUPPORT float64 | complex128](*nvs.Point[SUPPORT], []SUPPORT) {
 
 func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communicator guid.Guid) {
 
-	w := cr.ei / (cr.ei + ej)
+	var w float64
+	if cr.ei+ej != 0 {
+		w = cr.ei / (cr.ei + ej)
+	} else {
+		w = 10e-5 //Justified by the fact that if errors converge to 0, the algorithm loses its adaptability
+	}
 
 	commData, present := cr.nodesCache[communicator]
 	if !present {
@@ -214,7 +219,7 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 	cr.vivaldi_update(nodes.Rtt, nodes.Ej, nodes.Communicator)
 
 	//Classical Observer notify, the observers will keep a reference to the core to get the updates
-	cr.PushToChannels(true)
+	//cr.PushToChannels(true)
 
 	return err
 }
