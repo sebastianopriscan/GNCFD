@@ -1,11 +1,12 @@
-//go:build release
-// +build release
+//go:build !release
+// +build !release
 
 package vivaldi
 
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"sync"
 
@@ -128,6 +129,10 @@ func updatePoint[SUPPORT float64 | complex128](*nvs.Point[SUPPORT], []SUPPORT) {
 
 func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communicator guid.Guid) {
 
+	//DEBUG_PUSH
+	mssg := "Vivaldi Core: running vivaldi_update:\n"
+	//DEBUG_POP
+
 	var w float64
 	if cr.ei+ej != 0 {
 		w = cr.ei / (cr.ei + ej)
@@ -135,43 +140,110 @@ func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communic
 		w = 10e-5 //Justified by the fact that if errors converge to 0, the algorithm loses its adaptability
 	}
 
+	//DEBUG_PUSH
+	mssg += fmt.Sprintf("\tcr.ei = %v\n\tej = %v\n\tw = %v\n", cr.ei, ej, w)
+	//DEBUG_POP
+
 	commData, present := cr.nodesCache[communicator]
 	if !present {
+		//DEBUG_PUSH
+		mssg += "\tCommunicator not present in table, returning"
+		log.Print(mssg)
+		//DEBUG_POP
 		return
 	}
 	commCoords := commData.Coords
 
+	//DEBUG_PUSH
+	mssg += "\tMy Coordinates:\n"
+	for _, coor := range cr.myCoordinates.GetCoordinates() {
+		mssg += fmt.Sprintf("\t\t%v\n", coor)
+	}
+
+	mssg += fmt.Sprintf("\tCommunicator GUID: %v\n\tCommunicator coordinates:\n", communicator)
+	for _, coord := range commCoords.GetCoordinates() {
+		mssg += fmt.Sprintf("\t\t%v\n", coord)
+	}
+	//DEBUG_POP
+
 	dist, err := cr.space.Distance(cr.myCoordinates, commCoords)
 	if err != nil {
+		//DEBUG_PUSH
+		mssg += "\tError generating coordinates, details: " + err.Error() + "\n"
+		log.Print(mssg)
+		//DEBUG_POP
 		return
 	}
+
+	//DEBUG_PUSH
+	mssg += fmt.Sprintf("\tDistance: %v\n", dist)
+	//DEBUG_POP
 
 	e := (rtt - dist)
 	es := math.Abs(e) / rtt
 
+	//DEBUG_PUSH
+	mssg += fmt.Sprintf("\te = %v\n\tes = %v\n\trtt = %v", e, es, rtt)
+	//DEBUG_POP
+
 	cr.ei = es * cr.ce * w * cr.ei * (1 - cr.ce*w)
 	delta := cr.cc * w
 
+	//DEBUG_PUSH
+	mssg += fmt.Sprintf("\t*cr.ei = %v\n\tdelta = %v\n", cr.ei, delta)
+	//DEBUG_POP
+
 	unit, err := cr.space.UnitVector(cr.myCoordinates, commCoords)
 	if err != nil {
+		//DEBUG_PUSH
+		mssg += fmt.Sprintf("\tError generating Unit vector, details: " + err.Error() + "\n")
+		log.Print(mssg)
+		//DEBUG_POP
 		return
 	}
 
+	//DEBUG_PUSH
+	mssg += "\tUnit vector coordinates:\n"
+	for _, coor := range unit.GetCoordinates() {
+		mssg += fmt.Sprintf("\t\t%v\n", coor)
+	}
+	//DEBUG_POP
+
 	mulPt, err := cr.space.ExternalMul(unit, e*delta)
 	if err != nil {
+		//DEBUG_PUSH
+		mssg += "\tError doing external mul, details: " + err.Error() + "\n"
+		log.Print(mssg)
+		//DEBUG_POP
 		return
 	}
+
+	//DEBUG_PUSH
+	mssg += "\tExMul vector coordinates:\n"
+	for _, coor := range mulPt.GetCoordinates() {
+		mssg += fmt.Sprintf("\t\t%v\n", coor)
+	}
+	//DEBUG_POP
 
 	newCoordinates := make([]SUPPORT, cr.space.Dimension())
 	myCoords := cr.myCoordinates.GetCoordinates()
 	mulPt_coors := mulPt.GetCoordinates()
 
+	//DEBUG_PUSH
+	mssg += "\tSelf new coordinates:\n"
+	//DEBUG_POP
 	for i := 0; i < cr.space.Dimension(); i++ {
-
 		newCoordinates[i] = myCoords[i] + mulPt_coors[i]
+		//DEBUG_PUSH
+		mssg += fmt.Sprintf("\t\t%v\n", newCoordinates[i])
+		//DEBUG_POP
 	}
 
 	cr.myCoordinates.SetCoordinates(newCoordinates)
+
+	//DEBUG_PUSH
+	log.Print(mssg)
+	//DEBUG_POP
 }
 
 func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
