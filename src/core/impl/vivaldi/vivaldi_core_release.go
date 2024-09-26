@@ -7,7 +7,7 @@ package vivaldi
 import (
 	"errors"
 	"fmt"
-	"log"
+
 	"math"
 	"sync"
 
