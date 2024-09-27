@@ -352,3 +352,41 @@ type VivaldiMetadata[SUPPORT float64 | complex128] struct {
 	Ej           float64
 	Communicator guid.Guid
 }
+
+//DEBUG_PUSH
+
+func (cr *VivaldiCore[SUPPORT]) DumpCore() (*VivaldiMetadata[SUPPORT], error) {
+
+	cr.core_mu.RLock()
+	defer cr.core_mu.RUnlock()
+
+	retVal := &VivaldiMetadata[SUPPORT]{
+		Session:      cr.session,
+		Ej:           cr.ei,
+		Communicator: cr.myGUID,
+	}
+
+	data := make(map[guid.Guid]VivaldiMetaCoor[SUPPORT])
+
+	data[cr.myGUID] = VivaldiMetaCoor[SUPPORT]{
+		IsFailed: false,
+		Coords:   cr.myCoordinates.GetCoordinates(),
+	}
+
+	for k, v := range cr.nodesCache {
+		if v.Updated {
+			data[k] = VivaldiMetaCoor[SUPPORT]{
+				IsFailed: v.IsFailed,
+				Coords:   v.Coords.GetCoordinates(),
+			}
+
+			v.Updated = false
+		}
+	}
+
+	retVal.Data = data
+
+	return retVal, nil
+}
+
+//DEBUG_POP
