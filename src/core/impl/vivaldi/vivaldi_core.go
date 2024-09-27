@@ -353,7 +353,7 @@ type VivaldiMetadata[SUPPORT float64 | complex128] struct {
 	Communicator guid.Guid
 }
 
-//DEBUG_PUSH
+//DUMP_PUSH
 
 func (cr *VivaldiCore[SUPPORT]) DumpCore() (*VivaldiMetadata[SUPPORT], error) {
 
@@ -374,13 +374,10 @@ func (cr *VivaldiCore[SUPPORT]) DumpCore() (*VivaldiMetadata[SUPPORT], error) {
 	}
 
 	for k, v := range cr.nodesCache {
-		if v.Updated {
-			data[k] = VivaldiMetaCoor[SUPPORT]{
-				IsFailed: v.IsFailed,
-				Coords:   v.Coords.GetCoordinates(),
-			}
 
-			v.Updated = false
+		data[k] = VivaldiMetaCoor[SUPPORT]{
+			IsFailed: v.IsFailed,
+			Coords:   v.Coords.GetCoordinates(),
 		}
 	}
 
@@ -389,4 +386,4 @@ func (cr *VivaldiCore[SUPPORT]) DumpCore() (*VivaldiMetadata[SUPPORT], error) {
 	return retVal, nil
 }
 
-//DEBUG_POP
+//DUMP_POP

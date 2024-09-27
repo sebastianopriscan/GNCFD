@@ -6,6 +6,10 @@ BEGIN {
     result = ""
     result = result "//go:build release\n" ;
     result = result "// +build release\n\n" ;
+
+    pruner_symbol = ENVIRON["PRUNER_SYMBOL"]
+    push_regex = ".{0,256}\\/\\/" pruner_symbol "_PUSH.{0,256}"
+    pop_regex = ".{0,256}\\/\\/" pruner_symbol "_POP.{0,256}"
 } ;
 
 /\/\/go:build/ {
@@ -15,7 +19,7 @@ BEGIN {
     next ;
 }
 
-/\/\/DEBUG_PUSH/ { 
+$0 ~ push_regex { 
     preintDecision ++ ;
     cleanOn++ ;
 }
@@ -24,7 +28,7 @@ cleanOn <= 0 {
     result = result $0 "\n" ;
 }
 
-/\/\/DEBUG_POP/ { 
+$0 ~ pop_regex { 
     cleanOn-- ;
 }
 
