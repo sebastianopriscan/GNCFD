@@ -214,10 +214,71 @@ func (vgc *VivaldiRPCGossipClient) Forward(nodeCore core.GNCFDCore, data core.Me
 		return errors.New("error: bad message passed")
 	}
 
+	coreStatus, err := nodeCore.GetMyState()
+	switch coreStatusReal := coreStatus.(type) {
+	case *vivaldi.VivaldiPeerState[float64]:
+		if nodes.Support == pb_go.Support_REAL {
+			coordinates := coreStatusReal.Coords
+			point := asPointFloat(coordinates)
+			found := false
+			for _, nodeState := range nodes.UpdatePayload {
+				if nodeState.Guid == coreStatusReal.Me.String() {
+					nodeState.Coords = point
+					found = true
+					break
+				}
+			}
+			if !found {
+				toAppend := &pb_go.NodeState{
+					Guid:   coreStatusReal.Me.String(),
+					Failed: false,
+					Coords: point}
+				nodes.UpdatePayload = append(nodes.UpdatePayload, toAppend)
+			}
+			nodes.Sender = coreStatusReal.Me.String()
+			nodes.Ej = coreStatusReal.Ej
+		} else {
+			return errors.New("error: bad message passed (incompatible support)")
+		}
+	case *vivaldi.VivaldiPeerState[complex128]:
+
+		if nodes.Support == pb_go.Support_CMPLX {
+			coordinates := coreStatusReal.Coords
+			point := asPointCmplx(coordinates)
+			found := false
+			for _, nodeState := range nodes.UpdatePayload {
+				if nodeState.Guid == coreStatusReal.Me.String() {
+					nodeState.Coords = point
+					found = true
+					break
+				}
+			}
+			if !found {
+				toAppend := &pb_go.NodeState{
+					Guid:   coreStatusReal.Me.String(),
+					Failed: false,
+					Coords: point}
+				nodes.UpdatePayload = append(nodes.UpdatePayload, toAppend)
+			}
+			nodes.Sender = coreStatusReal.Me.String()
+			nodes.Ej = coreStatusReal.Ej
+		} else {
+			return errors.New("error: bad message passed (incompatible support)")
+		}
+	default:
+		return errors.New("error: got bad state from core")
+	}
+
 	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := vgc.client.PushGossip(timeout, nodes)
+	time, err := ntptime.GetNTPTime()
+	if err != nil {
+		return fmt.Errorf("error in parameters preparation, details: %s", err)
+	}
+	nodes.Timestamp = time.UnixNano()
+
+	_, err = vgc.client.PushGossip(timeout, nodes)
 
 	if err != nil {
 		return fmt.Errorf("unable to push state updates, details: %s", err)

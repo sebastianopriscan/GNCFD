@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	//DEBUG_PUSH
+	//LOG_PUSH
 	"log"
-	//DEBUG_POP
+	//LOG_POP
 	"math"
 	"sync"
 
@@ -126,8 +126,33 @@ func (cr *VivaldiCore[SUPPORT]) GetStateUpdates() (core.Metadata, error) {
 	return retVal, nil
 }
 
-func updatePoint[SUPPORT float64 | complex128](*nvs.Point[SUPPORT], []SUPPORT) {
-	//TODO : Decide if a general coordinate update should be needed and eventually customizable
+func (cr *VivaldiCore[SUPPORT]) updatePoint(point *nvs.Point[SUPPORT], newCoords []SUPPORT) error {
+	newCoordsPoint, err := nvs.NewPoint(cr.space, newCoords)
+	if err != nil {
+		return fmt.Errorf("error generating point updates, details: %s", err)
+	}
+	newCoordsPointHalf, err := cr.space.ExternalMul(newCoordsPoint, 0.5)
+	if err != nil {
+		return fmt.Errorf("error generating point updates, details: %s", err)
+	}
+	origPointHalf, err := cr.space.ExternalMul(point, 0.5)
+	if err != nil {
+		return fmt.Errorf("error generating point updates, details: %s", err)
+	}
+
+	newCoordsSliceHalf := newCoordsPointHalf.GetCoordinates()
+	origSliceHalf := origPointHalf.GetCoordinates()
+	sum := make([]SUPPORT, cr.space.Dimension())
+	for i := 0; i < cr.space.Dimension(); i++ {
+		sum[i] = newCoordsSliceHalf[i] + origSliceHalf[i]
+	}
+
+	res := point.SetCoordinates(sum)
+	if !res {
+		return errors.New("error setting coordinates for point, dimension/support not compatible")
+	}
+
+	return nil
 }
 
 func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communicator guid.Guid) {
@@ -249,6 +274,18 @@ func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communic
 	//DEBUG_POP
 }
 
+func (cr *VivaldiCore[SUPPORT]) GetMyState() (core.Metadata, error) {
+	cr.core_mu.RLock()
+	defer cr.core_mu.RUnlock()
+	return &VivaldiPeerState[SUPPORT]{Me: cr.myGUID, Coords: cr.myCoordinates.GetCoordinates(), Ej: cr.ei}, nil
+}
+
+//DUMPOINT_PUSH
+
+var guidLogs map[guid.Guid]int = make(map[guid.Guid]int)
+
+//DUMPOINT_POP
+
 func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 	nodes, ok := metadata.(*VivaldiMetadata[SUPPORT])
 	if !ok {
@@ -266,11 +303,27 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 	defer cr.core_mu.Unlock()
 
 	var err error = nil
-	for guid, data := range nodes.Data {
-		node, present := cr.nodesCache[guid]
+	for extGuid, data := range nodes.Data {
+		node, present := cr.nodesCache[extGuid]
+		//DUMPOINT_PUSH
+		_, guidpres := guidLogs[extGuid]
+		if !guidpres {
+			guidLogs[extGuid] = 0
+		}
+		if guidLogs[extGuid] != 4 {
+			coorMsg := ""
+			coorMsg += fmt.Sprintf("Dumping info for GUID %v:\n\tCoordinates:\n", extGuid)
+			for _, coor := range data.Coords {
+				coorMsg += fmt.Sprintf("\t\t%v\n", coor)
+			}
+			log.Print(coorMsg)
+			guidLogs[extGuid]++
+		}
+
+		//DUMPOINT_POP
 		if present {
 			node.IsFailed = data.IsFailed
-			updatePoint(node.Coords, data.Coords)
+			cr.updatePoint(node.Coords, data.Coords)
 			node.Updated = true
 		} else {
 
@@ -287,7 +340,7 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
 				Coords:   point,
 			}
 
-			cr.nodesCache[guid] = node
+			cr.nodesCache[extGuid] = node
 		}
 	}
 
@@ -351,6 +404,12 @@ type VivaldiMetadata[SUPPORT float64 | complex128] struct {
 	Rtt          float64
 	Ej           float64
 	Communicator guid.Guid
+}
+
+type VivaldiPeerState[SUPPORT float64 | complex128] struct {
+	Me     guid.Guid
+	Coords []SUPPORT
+	Ej     float64
 }
 
 //DUMP_PUSH

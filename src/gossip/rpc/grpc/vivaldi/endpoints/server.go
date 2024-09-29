@@ -32,6 +32,7 @@ func ActivateVivaldiGRPCServer(name string, addr string, transport string,
 	}
 
 	pb_go.RegisterGossipStatusServer(serv.Server, vivserv)
+	serv.Start()
 
 	return &VivaldiGRPCServerDesc{Server: serv, Exists: exist, VivServ: vivserv}, nil
 }

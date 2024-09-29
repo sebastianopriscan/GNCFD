@@ -22,8 +22,13 @@ var availableInterfaces map[string]servCount = make(map[string]servCount)
 type ServerInterface struct {
 	name    string
 	Server  *grpc.Server
+	Conn    net.Listener
 	Address string
 	set     bool
+}
+
+func (srv *ServerInterface) Start() {
+	go srv.Server.Serve(srv.Conn)
 }
 
 func GetServer(name string, addr string, transport string, opts []grpc.ServerOption) (*ServerInterface, bool, error) {
@@ -47,8 +52,7 @@ func GetServer(name string, addr string, transport string, opts []grpc.ServerOpt
 		}
 
 		server = grpc.NewServer(opts...)
-		go server.Serve(lis)
-
+		retVal.Conn = lis
 		availableInterfaces[name] = servCount{addr: addr, server: server, count: 1}
 	}
 

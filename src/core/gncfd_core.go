@@ -16,6 +16,7 @@ type GNCFDCore interface {
 
 	GetKind() string
 	GetStateUpdates() (Metadata, error)
+	GetMyState() (Metadata, error)
 	UpdateState(metadata Metadata) error
 
 	SignalFailed(peers []guid.Guid)

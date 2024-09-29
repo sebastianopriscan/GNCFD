@@ -8,7 +8,7 @@ do
     then
         from_file=true
         tmp_rslt=
-        for i in "$@" ;
+        for i in `cat tags` ;
         do
             if [ "$from_file" == "true" ];
             then

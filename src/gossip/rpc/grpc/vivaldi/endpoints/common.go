@@ -10,17 +10,35 @@ import (
 
 const core_code string = "Vivaldi"
 
+func asPointFloat(coordinates []float64) *pb_go.Point {
+	coordReal := &pb_go.CoordStream{Coords: coordinates}
+	return &pb_go.Point{Dimension: int64(len(coordinates)), CoordReal: coordReal}
+}
+
 func asPointsFloat(updates *vivaldi.VivaldiMetadata[float64]) []*pb_go.NodeState {
 	retVal := make([]*pb_go.NodeState, 0)
 
 	for k, v := range updates.Data {
 		coordinates := v.Coords
-		coordReal := &pb_go.CoordStream{Coords: coordinates}
-		point := &pb_go.Point{Dimension: int64(len(coordinates)), CoordReal: coordReal}
+		point := asPointFloat(coordinates)
 		retVal = append(retVal, &pb_go.NodeState{Guid: k.String(), Coords: point, Failed: v.IsFailed})
 	}
 
 	return retVal
+}
+
+func asPointCmplx(coordinates []complex128) *pb_go.Point {
+	re_coords := make([]float64, 0)
+	im_coords := make([]float64, 0)
+
+	for _, coord := range coordinates {
+		re_coords = append(re_coords, real(coord))
+		im_coords = append(im_coords, imag(coord))
+	}
+
+	coordReal := &pb_go.CoordStream{Coords: re_coords}
+	coordIm := &pb_go.CoordStream{Coords: im_coords}
+	return &pb_go.Point{Dimension: int64(len(coordinates)), CoordReal: coordReal, CoordIm: coordIm}
 }
 
 func asPointsCmplx(updates *vivaldi.VivaldiMetadata[complex128]) []*pb_go.NodeState {
@@ -28,17 +46,7 @@ func asPointsCmplx(updates *vivaldi.VivaldiMetadata[complex128]) []*pb_go.NodeSt
 
 	for k, v := range updates.Data {
 		coordinates := v.Coords
-		re_coords := make([]float64, 0)
-		im_coords := make([]float64, 0)
-
-		for _, coord := range coordinates {
-			re_coords = append(re_coords, real(coord))
-			im_coords = append(im_coords, imag(coord))
-		}
-
-		coordReal := &pb_go.CoordStream{Coords: re_coords}
-		coordIm := &pb_go.CoordStream{Coords: im_coords}
-		point := &pb_go.Point{Dimension: int64(len(coordinates)), CoordReal: coordReal, CoordIm: coordIm}
+		point := asPointCmplx(coordinates)
 		retVal = append(retVal, &pb_go.NodeState{Guid: k.String(), Coords: point, Failed: v.IsFailed})
 	}
 
