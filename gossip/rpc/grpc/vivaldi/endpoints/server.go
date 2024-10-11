@@ -19,7 +19,7 @@ type VivaldiGRPCServerDesc struct {
 }
 
 func ActivateVivaldiGRPCServer(name string, addr string, transport string,
-	opts []grpc.ServerOption, coreMap *lockedmap.LockedMap[guid.Guid, core.GNCFDCore]) (*VivaldiGRPCServerDesc, error) {
+	opts []grpc.ServerOption, coreMap *lockedmap.LockedMap[guid.Guid, core.GNCFDCoreInteractionGate]) (*VivaldiGRPCServerDesc, error) {
 
 	serv, exist, err := connectionmanager.GetServer(name, addr, transport, opts)
 	if err != nil {

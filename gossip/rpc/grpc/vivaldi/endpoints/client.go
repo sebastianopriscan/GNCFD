@@ -45,7 +45,7 @@ func (vgc *VivaldiRPCGossipClient) Release() error {
 	return nil
 }
 
-func preparePush(nodeCore core.GNCFDCore, updates core.Metadata) (*pb_go.NodeUpdates, error) {
+func preparePush(nodeCore core.GNCFDCoreInteractionGate, updates core.CoreData) (*pb_go.NodeUpdates, error) {
 
 	if nodeCore.GetKind() != core_code {
 		return nil, errors.New("error: the requested core is incompatible with this gossip client")
@@ -72,7 +72,7 @@ func preparePush(nodeCore core.GNCFDCore, updates core.Metadata) (*pb_go.NodeUpd
 	return &pointsToSend, nil
 }
 
-func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates, time int64) error {
+func executePull(nodeCore core.GNCFDCoreInteractionGate, nodeUpdates *pb_go.NodeUpdates, time int64) error {
 
 	sessGuid, err := guid.Deserialize([]byte(nodeUpdates.CoreSession))
 	if err != nil {
@@ -123,7 +123,7 @@ func executePull(nodeCore core.GNCFDCore, nodeUpdates *pb_go.NodeUpdates, time i
 	return nil
 }
 
-func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore, coreData core.Metadata, messageID guid.Guid) error {
+func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCoreInteractionGate, coreData core.CoreData, messageID guid.Guid) error {
 
 	pointsToSend, err := preparePush(nodeCore, coreData)
 	if err != nil {
@@ -149,7 +149,7 @@ func (gc *VivaldiRPCGossipClient) Push(nodeCore core.GNCFDCore, coreData core.Me
 	return nil
 }
 
-func (gc *VivaldiRPCGossipClient) Pull(nodeCore core.GNCFDCore) error {
+func (gc *VivaldiRPCGossipClient) Pull(nodeCore core.GNCFDCoreInteractionGate) error {
 
 	if nodeCore.GetKind() != core_code {
 		return errors.New("error: the requested core is incompatible with this gossip client")
@@ -172,7 +172,7 @@ func (gc *VivaldiRPCGossipClient) Pull(nodeCore core.GNCFDCore) error {
 	return executePull(nodeCore, nodeUpdates, now)
 }
 
-func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore, coreData core.Metadata, messageID guid.Guid) error {
+func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCoreInteractionGate, coreData core.CoreData, messageID guid.Guid) error {
 
 	pointsToSend, err := preparePush(nodeCore, coreData)
 	if err != nil {
@@ -203,7 +203,7 @@ func (vgc *VivaldiRPCGossipClient) Exchange(nodeCore core.GNCFDCore, coreData co
 	return executePull(nodeCore, nodeUpdates, time.UnixNano())
 }
 
-func (vgc *VivaldiRPCGossipClient) Forward(nodeCore core.GNCFDCore, data core.Metadata) error {
+func (vgc *VivaldiRPCGossipClient) Forward(nodeCore core.GNCFDCoreInteractionGate, data core.CoreData) error {
 
 	if nodeCore.GetKind() != core_code {
 		return errors.New("error: the requested core is incompatible with this gossip client")
@@ -214,7 +214,7 @@ func (vgc *VivaldiRPCGossipClient) Forward(nodeCore core.GNCFDCore, data core.Me
 		return errors.New("error: bad message passed")
 	}
 
-	coreStatus, err := nodeCore.GetMyState()
+	coreStatus, _ := nodeCore.GetMyState()
 	switch coreStatusReal := coreStatus.(type) {
 	case *vivaldi.VivaldiPeerState[float64]:
 		if nodes.Support == pb_go.Support_REAL {

@@ -93,7 +93,7 @@ func (cr *VivaldiCore[SUPPORT]) GetKind() string {
 	return "Vivaldi"
 }
 
-func (cr *VivaldiCore[SUPPORT]) GetStateUpdates() (core.Metadata, error) {
+func (cr *VivaldiCore[SUPPORT]) GetStateUpdates() (core.CoreData, error) {
 	cr.core_mu.RLock()
 	defer cr.core_mu.RUnlock()
 
@@ -274,7 +274,7 @@ func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communic
 	//DEBUG_POP
 }
 
-func (cr *VivaldiCore[SUPPORT]) GetMyState() (core.Metadata, error) {
+func (cr *VivaldiCore[SUPPORT]) GetMyState() (core.CoreData, error) {
 	cr.core_mu.RLock()
 	defer cr.core_mu.RUnlock()
 	return &VivaldiPeerState[SUPPORT]{Me: cr.myGUID, Coords: cr.myCoordinates.GetCoordinates(), Ej: cr.ei}, nil
@@ -286,7 +286,7 @@ var guidLogs map[guid.Guid]int = make(map[guid.Guid]int)
 
 //DUMPOINT_POP
 
-func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.Metadata) error {
+func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.CoreData) error {
 	nodes, ok := metadata.(*VivaldiMetadata[SUPPORT])
 	if !ok {
 		return errors.New("error: bad metadata passed")

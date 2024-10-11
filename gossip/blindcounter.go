@@ -25,8 +25,8 @@ type messageHistory struct {
 type BlindCounterGossiper struct {
 	channelobserver.ChannelObserverObserver
 
-	peers *lockedmap.LockedMap[guid.Guid, CommunicationChannel]
-	core  core.GNCFDCore
+	peers *lockedmap.LockedMap[guid.Guid, GNCFDCommunicationChannel]
+	core  core.GNCFDCoreInteractionGate
 
 	B int
 	F int
@@ -38,7 +38,7 @@ type BlindCounterGossiper struct {
 	stopchann chan bool
 }
 
-func NewBlindCounterGossiper(peerMap *lockedmap.LockedMap[guid.Guid, CommunicationChannel], core core.GNCFDCore, B int, F int) *BlindCounterGossiper {
+func NewBlindCounterGossiper(peerMap *lockedmap.LockedMap[guid.Guid, GNCFDCommunicationChannel], core core.GNCFDCoreInteractionGate, B int, F int) *BlindCounterGossiper {
 	retVal := &BlindCounterGossiper{peers: peerMap,
 		core: core, B: B, F: F,
 

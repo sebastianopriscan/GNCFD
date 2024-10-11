@@ -19,10 +19,10 @@ import (
 type VivaldiGRPCGossipServer struct {
 	channelobserver.ChannelObserverSubjectImpl
 	pb_go.UnimplementedGossipStatusServer
-	coreMap *lockedmap.LockedMap[guid.Guid, core.GNCFDCore]
+	coreMap *lockedmap.LockedMap[guid.Guid, core.GNCFDCoreInteractionGate]
 }
 
-func do_push_gossip(nodes *pb_go.NodeUpdates, core core.GNCFDCore, sessGuid guid.Guid, now int64) (*pb_go.PushReturn, error) {
+func do_push_gossip(nodes *pb_go.NodeUpdates, core core.GNCFDCoreInteractionGate, sessGuid guid.Guid, now int64) (*pb_go.PushReturn, error) {
 
 	sender, err := guid.Deserialize([]byte(nodes.Sender))
 	if err != nil {
@@ -68,7 +68,7 @@ func do_push_gossip(nodes *pb_go.NodeUpdates, core core.GNCFDCore, sessGuid guid
 	return &pb_go.PushReturn{}, nil
 }
 
-func do_pull_gossip(core core.GNCFDCore) (*pb_go.NodeUpdates, error) {
+func do_pull_gossip(core core.GNCFDCoreInteractionGate) (*pb_go.NodeUpdates, error) {
 
 	updates, err := core.GetStateUpdates()
 	if err != nil {
