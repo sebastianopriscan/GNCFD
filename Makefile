@@ -1,6 +1,6 @@
 .PHONY : proto-vivaldi
 
-grpc_dir := ./gossip/rpc/grpc
+grpc_dir := ./communication/rpc/grpc
 
 module := "github.com/sebastianopriscan/GNCFD"
 

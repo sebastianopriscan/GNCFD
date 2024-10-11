@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/sebastianopriscan/GNCFD/communication/rpc/grpc/vivaldi/pb_go"
 	"github.com/sebastianopriscan/GNCFD/core"
 	"github.com/sebastianopriscan/GNCFD/core/impl/vivaldi"
 	"github.com/sebastianopriscan/GNCFD/gossip"
-	"github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go"
 	channelobserver "github.com/sebastianopriscan/GNCFD/utils/channel_observer"
 	"github.com/sebastianopriscan/GNCFD/utils/guid"
 	lockedmap "github.com/sebastianopriscan/GNCFD/utils/locked_map"

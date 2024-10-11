@@ -7,10 +7,10 @@ import (
 	"math"
 	"time"
 
+	connectionmanager "github.com/sebastianopriscan/GNCFD/communication/rpc/grpc/connection_manager"
+	"github.com/sebastianopriscan/GNCFD/communication/rpc/grpc/vivaldi/pb_go"
 	"github.com/sebastianopriscan/GNCFD/core"
 	"github.com/sebastianopriscan/GNCFD/core/impl/vivaldi"
-	connectionmanager "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/connection_manager"
-	"github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go"
 	"github.com/sebastianopriscan/GNCFD/utils/guid"
 	"github.com/sebastianopriscan/GNCFD/utils/ntptime"
 )

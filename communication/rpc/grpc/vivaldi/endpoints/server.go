@@ -3,9 +3,9 @@ package endpoints
 import (
 	"fmt"
 
+	connectionmanager "github.com/sebastianopriscan/GNCFD/communication/rpc/grpc/connection_manager"
+	"github.com/sebastianopriscan/GNCFD/communication/rpc/grpc/vivaldi/pb_go"
 	"github.com/sebastianopriscan/GNCFD/core"
-	connectionmanager "github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/connection_manager"
-	"github.com/sebastianopriscan/GNCFD/gossip/rpc/grpc/vivaldi/pb_go"
 	channelobserver "github.com/sebastianopriscan/GNCFD/utils/channel_observer"
 	"github.com/sebastianopriscan/GNCFD/utils/guid"
 	lockedmap "github.com/sebastianopriscan/GNCFD/utils/locked_map"

@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/sebastianopriscan/GNCFD/communication"
 	"github.com/sebastianopriscan/GNCFD/core"
 	channelobserver "github.com/sebastianopriscan/GNCFD/utils/channel_observer"
 	"github.com/sebastianopriscan/GNCFD/utils/guid"
@@ -25,7 +26,7 @@ type messageHistory struct {
 type BlindCounterGossiper struct {
 	channelobserver.ChannelObserverObserver
 
-	peers *lockedmap.LockedMap[guid.Guid, GNCFDCommunicationChannel]
+	peers *lockedmap.LockedMap[guid.Guid, communication.GNCFDCommunicationChannel]
 	core  core.GNCFDCoreInteractionGate
 
 	B int
@@ -38,7 +39,7 @@ type BlindCounterGossiper struct {
 	stopchann chan bool
 }
 
-func NewBlindCounterGossiper(peerMap *lockedmap.LockedMap[guid.Guid, GNCFDCommunicationChannel], core core.GNCFDCoreInteractionGate, B int, F int) *BlindCounterGossiper {
+func NewBlindCounterGossiper(peerMap *lockedmap.LockedMap[guid.Guid, communication.GNCFDCommunicationChannel], core core.GNCFDCoreInteractionGate, B int, F int) *BlindCounterGossiper {
 	retVal := &BlindCounterGossiper{peers: peerMap,
 		core: core, B: B, F: F,
 
@@ -260,4 +261,12 @@ func (bcg *BlindCounterGossiper) message_history_cleaner(stopchann *chan bool) {
 			bcg.history.Mu.Unlock()
 		}
 	}
+}
+
+func (bcg *BlindCounterGossiper) AddPeer(_ guid.Guid, _ communication.GNCFDCommunicationChannel) {
+	log.Printf("Please add peers through LockedMap")
+}
+
+func (bcg *BlindCounterGossiper) RemovePeer(_ guid.Guid) {
+	log.Printf("Please remove peers through LockedMap")
 }

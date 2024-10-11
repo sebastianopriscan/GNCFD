@@ -1,4 +1,4 @@
-package gossip
+package communication
 
 import (
 	"github.com/sebastianopriscan/GNCFD/core"
