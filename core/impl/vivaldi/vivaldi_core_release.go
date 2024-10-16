@@ -23,6 +23,7 @@ type nodeData[SUPPORT float64 | complex128] struct {
 	IsFailed bool
 	Coords   *nvs.Point[SUPPORT]
 	Updated  bool
+	Neighbor bool
 }
 
 type VivaldiCore[SUPPORT float64 | complex128] struct {
@@ -237,15 +238,17 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.CoreData) error {
 	var err error = nil
 	for extGuid, data := range nodes.Data {
 		if extGuid == cr.myGUID {
-			log.Println("UpdateState: found in data my GUID, ignoring")
 			continue
 		}
 		node, present := cr.nodesCache[extGuid]
 		if present {
 			node.IsFailed = data.IsFailed
 			if extGuid != nodes.Communicator {
-				//cr.updatePoint(node.Coords, data.Coords)
+				if !node.Neighbor {
+					cr.updatePoint(node.Coords, data.Coords)
+				}
 			} else {
+				node.Neighbor = true
 				node.Coords.SetCoordinates(data.Coords)
 			}
 			node.Updated = true
@@ -262,6 +265,11 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.CoreData) error {
 				IsFailed: data.IsFailed,
 				Updated:  true,
 				Coords:   point,
+				Neighbor: false,
+			}
+
+			if extGuid == nodes.Communicator {
+				node.Neighbor = true
 			}
 
 			cr.nodesCache[extGuid] = node
