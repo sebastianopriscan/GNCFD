@@ -183,7 +183,7 @@ func (cr *VivaldiCore[SUPPORT]) vivaldi_update(rtt float64, ej float64, communic
 	es := math.Abs(e) / rtt
 
 
-	cr.ei = es * cr.ce * w * cr.ei * (1 - cr.ce*w)
+	cr.ei = es*cr.ce*w + cr.ei*(1-cr.ce*w)
 	delta := cr.cc * w
 
 
@@ -236,10 +236,18 @@ func (cr *VivaldiCore[SUPPORT]) UpdateState(metadata core.CoreData) error {
 
 	var err error = nil
 	for extGuid, data := range nodes.Data {
+		if extGuid == cr.myGUID {
+			log.Println("UpdateState: found in data my GUID, ignoring")
+			continue
+		}
 		node, present := cr.nodesCache[extGuid]
 		if present {
 			node.IsFailed = data.IsFailed
-			cr.updatePoint(node.Coords, data.Coords)
+			if extGuid != nodes.Communicator {
+				//cr.updatePoint(node.Coords, data.Coords)
+			} else {
+				node.Coords.SetCoordinates(data.Coords)
+			}
 			node.Updated = true
 		} else {
 
